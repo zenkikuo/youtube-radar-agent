@@ -1,0 +1,61 @@
+name: QA Output Auditor Agent
+
+on:
+  workflow_run:
+    workflows: ["YouTube Radar Main Agent"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  audit-output:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python & GenAI SDK
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install google-genai pyyaml requests
+
+      - name: Run AI Quality Audit
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DISCORD_WEBHOOK_LIFE: ${{ secrets.DISCORD_WEBHOOK_LIFE }}
+        run: |
+          python - << 'EOF'
+          import os, json, yaml, requests
+          from google import genai
+
+          with open("config.yaml", "r", encoding="utf-8") as f:
+              config = yaml.safe_load(f)
+          report = json.load(open("run_report.json", encoding="utf-8")) if os.path.exists("run_report.json") else {}
+
+          client = genai.Client(api_key=os.environ["GEMINI_API_KEY"], http_options={"api_version": "v1beta"})
+          prompt = f"""
+          你是自動化內容系統的 QA 品質稽核官。請審查以下本輪執行報告：
+          {json.dumps(report, ensure_ascii=False, indent=2)}
+
+          請檢查以下 3 項指標：
+          1. 頻道覆蓋率：skipped_channels 是否有連續失敗的幽靈頻道？
+          2. 推播品質與時效：pushed_videos 標題是否包含舊年份（如 2024/2025 舊攻略）？
+          3. 運動防劇透合規：sports 類別的 reason 與 title 是否不小心洩漏了最終比數（如 110:105）？
+
+          請輸出簡短體檢結果：首行必須為「STATUS: PASS」或「STATUS: WARN」，接著用 3 點條列說明原因與建議（總字數 150 字內）。
+          """
+          res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+          audit_text = res.text.strip()
+          print("=== QA 稽核報告 ===")
+          print(audit_text)
+
+          if audit_text.startswith("STATUS: WARN") and os.environ.get("DISCORD_WEBHOOK_LIFE"):
+              requests.post(os.environ["DISCORD_WEBHOOK_LIFE"], json={
+                  "username": "QA 品質稽核官",
+                  "content": f"📋 **巡邏品質異常提醒**\n{audit_text}"
+              })
+          EOF
