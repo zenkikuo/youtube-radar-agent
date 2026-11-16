@@ -29,33 +29,28 @@ jobs:
           DISCORD_WEBHOOK_LIFE: ${{ secrets.DISCORD_WEBHOOK_LIFE }}
         run: |
           python - << 'EOF'
-          import os, json, yaml, requests
+          import os, json, requests
           from google import genai
 
-          with open("config.yaml", "r", encoding="utf-8") as f:
-              config = yaml.safe_load(f)
           report = json.load(open("run_report.json", encoding="utf-8")) if os.path.exists("run_report.json") else {}
-
           client = genai.Client(api_key=os.environ["GEMINI_API_KEY"], http_options={"api_version": "v1beta"})
           prompt = f"""
           你是自動化內容系統的 QA 品質稽核官。請審查以下本輪執行報告：
           {json.dumps(report, ensure_ascii=False, indent=2)}
 
-          請檢查以下 3 項指標：
-          1. 頻道覆蓋率：skipped_channels 是否有連續失敗的幽靈頻道？
-          2. 推播品質與時效：pushed_videos 標題是否包含舊年份（如 2024/2025 舊攻略）？
-          3. 運動防劇透合規：sports 類別的 reason 與 title 是否不小心洩漏了最終比數（如 110:105）？
-
-          請輸出簡短體檢結果：首行必須為「STATUS: PASS」或「STATUS: WARN」，接著用 3 點條列說明原因與建議（總字數 150 字內）。
+          請檢查：1. 是否有幽靈頻道；2. 標題是否包含舊年份；3. sports 類別是否洩漏最終比數。
+          首行必須為「STATUS: PASS」或「STATUS: WARN」，接著用 3 點條列說明（150 字內）。
           """
-          res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-          audit_text = res.text.strip()
-          print("=== QA 稽核報告 ===")
-          print(audit_text)
-
-          if audit_text.startswith("STATUS: WARN") and os.environ.get("DISCORD_WEBHOOK_LIFE"):
-              requests.post(os.environ["DISCORD_WEBHOOK_LIFE"], json={
-                  "username": "QA 品質稽核官",
-                  "content": f"📋 **巡邏品質異常提醒**\n{audit_text}"
-              })
+          try:
+              res = client.models.generate_content(model="gemini-2.5-flash-lite", contents=prompt)
+              audit_text = res.text.strip()
+              print("=== QA 稽核報告 ===")
+              print(audit_text)
+              if audit_text.startswith("STATUS: WARN") and os.environ.get("DISCORD_WEBHOOK_LIFE"):
+                  requests.post(os.environ["DISCORD_WEBHOOK_LIFE"], json={
+                      "username": "QA 品質稽核官",
+                      "content": f"📋 **巡邏品質異常提醒**\n{audit_text}"
+                  })
+          except Exception as e:
+              print(f"⚠️ QA 稽核略過（API 額度冷卻或連線異常）：{e}")
           EOF
