@@ -1,5 +1,5 @@
 ### 🔍 AI 根因診斷
-config.yaml 檔案第一行第二十四個字元附近存在 YAML 語法錯誤（例如 Tab 與空白混用、冒號後缺少空格或引號未正確閉合），導致 yaml.safe_load 解析失敗並拋出 mapping values are not allowed here 異常。
+config.yaml 檔案第一行第二十四個字元（或其附近結構）包含不合法的 YAML 對應值格式錯誤（例如未正確縮排、冒號後缺少空格或字串引用不全），導致 PyYAML 解析失敗並丟出 mapping values are not allowed here 異常。
 
 ### 🛠️ 修復策略
-在 main.py 的 config.yaml 載入前加上檢查與錯誤提示防護，並在儲存或檢查 config 讀取時進行嚴格的格式驗證；另外提供一份乾淨的預設配置初始化機制，確保工作流程即使在設定檔有誤時也不會直接崩潰。
+在 main.py 的 YAML 讀取防護邏輯中加入更詳細的例外捕獲與提示，並確保即使 config.yaml 格式錯誤也能提供友善的錯誤診斷指引，同時由於此錯誤源自外部設定檔語法，程式碼本身已妥善捕捉 yaml.YAMLError，確保環境部署時檢查 config.yaml 的格式正確性即可。
