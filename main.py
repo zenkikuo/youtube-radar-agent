@@ -15,7 +15,6 @@ from google.genai import types
 SEEN_FILE = "seen_videos.json"
 CACHE_FILE = "channel_id_cache.json"
 
-# 4 大分類專屬 System Prompts
 CATEGORY_PROMPTS = {
     "cooking": """
         你是一位家庭料理與生活顧問。請審閱這部影片的標題與字幕：
@@ -57,61 +56,80 @@ def save_json(path: str, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def resolve_channel_id(handle: str, cache: dict) -> str:
+def resolve_channel_id(handle: str, cache: dict, max_retries: int = 3, initial_timeout: int = 60) -> str:
     """
     透過 yt-dlp 或直接判斷來解析頻道 Handle 或 URL 為頻道 ID (UC開頭)。
     這是因為 YouTube 網頁結構變化，原始的 Regex 可能失效。
+    增加重試機制和更長的超時時間，以提高穩定性。
     """
     if handle in cache:
         return cache[handle]
 
-    # 如果 handle 已經是標準的 YouTube Channel ID (UC開頭，24字元)，則直接返回
     if handle.startswith("UC") and len(handle) == 24 and re.match(r"UC[\w-]+", handle):
         cache[handle] = handle
         save_json(CACHE_FILE, cache)
         return handle
 
-    # 構建用於 yt-dlp 的輸入 URL。yt-dlp 可以處理 @handle 或完整的 YouTube URL。
-    if handle.startswith("http://") or handle.startswith("https://"):
-        input_identifier = handle
-    elif handle.startswith("@"): # 假設是 @handle 格式
+    input_identifier = handle
+    if handle.startswith("@"):
         input_identifier = f"https://www.youtube.com/{handle}"
-    else: # 可能是 legacy /user/ 或 /c/ 格式，或者直接是 channel ID 的一部分
+    elif not (handle.startswith("http://") or handle.startswith("https://")):
         input_identifier = f"https://www.youtube.com/{handle}"
 
-    cmd = ["yt-dlp", "--print", "channel_id", input_identifier, "--no-warnings"]
+    for attempt in range(max_retries):
+        cmd = ["yt-dlp", "--print", "channel_id", input_identifier, "--no-warnings"]
+        try:
+            current_timeout = initial_timeout * (1 + attempt * 0.5)
+            print(f"嘗試解析頻道 Handle ID '{handle}' (第 {attempt + 1}/{max_retries} 次, 超時 {current_timeout} 秒)...")
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=current_timeout)
+            channel_id = result.stdout.strip()
+            
+            if channel_id and channel_id.startswith("UC") and len(channel_id) == 24:
+                cache[handle] = channel_id
+                save_json(CACHE_FILE, cache)
+                print(f"成功解析頻道 '{handle}' 為 ID: {channel_id}")
+                return channel_id
+            else:
+                error_msg = f"yt-dlp 執行成功但無法解析出有效的頻道 ID (UC開頭且長度24): '{channel_id}' for handle: {handle}"
+                if attempt < max_retries - 1:
+                    print(f"警告: {error_msg}，將在 {attempt + 1} 秒後重試...")
+                    time.sleep(attempt + 1)
+                else:
+                    raise ValueError(error_msg)
+        except subprocess.CalledProcessError as e:
+            error_msg = f"yt-dlp 執行失敗，無法解析頻道 Handle ID '{handle}': {e.stderr.strip()}"
+            if "HTTP Error 404" in e.stderr:
+                print(error_msg)
+                raise ValueError(f"yt-dlp 無法解析頻道 Handle ID (404 Not Found): {handle}") from e
+            if attempt < max_retries - 1:
+                print(f"警告: {error_msg}，將在 {attempt + 1} 秒後重試...")
+                time.sleep(attempt + 1)
+            else:
+                raise ValueError(f"yt-dlp 無法解析頻道 Handle ID: {handle}") from e
+        except subprocess.TimeoutExpired:
+            error_msg = f"yt-dlp 解析頻道 Handle ID '{handle}' 時超時 (超時時間: {current_timeout} 秒)。請嘗試再次執行或檢查網路連線。"
+            if attempt < max_retries - 1:
+                print(f"警告: {error_msg}，將在 {attempt + 1} 秒後重試...")
+                time.sleep(attempt + 1)
+            else:
+                raise ValueError(f"yt-dlp 無法解析頻道 Handle ID (超時): {handle}")
+        except Exception as e:
+            error_msg = f"解析頻道 Handle ID '{handle}' 時發生未知錯誤: {e}"
+            if attempt < max_retries - 1:
+                print(f"警告: {error_msg}，將在 {attempt + 1} 秒後重試...")
+                time.sleep(attempt + 1)
+            else:
+                raise ValueError(f"未知錯誤，無法解析頻道 Handle ID: {handle}") from e
     
-    try:
-        # 增加 yt-dlp 的超時時間，避免解析延遲導致失敗
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
-        channel_id = result.stdout.strip()
-        
-        if channel_id and channel_id.startswith("UC") and len(channel_id) == 24:
-            cache[handle] = channel_id
-            save_json(CACHE_FILE, cache)
-            return channel_id
-        else:
-            # yt-dlp 成功執行但返回的不是有效的頻道 ID
-            raise ValueError(f"yt-dlp 執行成功但無法解析出有效的頻道 ID (UC開頭且長度24): '{channel_id}' for handle: {handle}")
-    except subprocess.CalledProcessError as e:
-        # yt-dlp 執行失敗，通常是因為找不到頻道或 URL 無效
-        print(f"yt-dlp 執行失敗，無法解析頻道 Handle ID '{handle}': {e.stderr.strip()}")
-        raise ValueError(f"yt-dlp 無法解析頻道 Handle ID: {handle}") from e
-    except subprocess.TimeoutExpired:
-        # yt-dlp 執行超時
-        print(f"yt-dlp 解析頻道 Handle ID '{handle}' 時超時。請嘗試再次執行或檢查網路連線。")
-        raise ValueError(f"yt-dlp 無法解析頻道 Handle ID (超時): {handle}")
-    except Exception as e:
-        # 捕獲其他未預期的錯誤
-        print(f"解析頻道 Handle ID '{handle}' 時發生未知錯誤: {e}")
-        raise ValueError(f"未知錯誤，無法解析頻道 Handle ID: {handle}") from e
+    raise ValueError(f"多次嘗試後，仍無法解析頻道 Handle ID: {handle}")
 
 def fetch_transcript(video_id: str) -> str:
     try:
         ytt = YouTubeTranscriptApi()
         transcript_list = ytt.fetch(video_id, languages=['zh-TW', 'zh-Hant', 'zh-CN', 'en'])
         return " ".join([s.text for s in transcript_list])
-    except Exception:
+    except Exception as e:
+        print(f"無法獲取影片 '{video_id}' 的字幕: {e}")
         return ""
 
 def analyze_video(client: genai.Client, title: str, description: str, transcript: str, category: str) -> VideoReview:
@@ -163,28 +181,63 @@ def search_topic_videos(query: str, filters: dict) -> list[dict]:
         "--flat-playlist",
         "--no-warnings"
     ]
-    # 搜尋主題影片的超時時間可以設定長一點
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    videos = []
-    for line in result.stdout.strip().split("\n"):
-        if not line:
-            continue
-        item = json.loads(line)
-        title = item.get("title", "")
-        duration = item.get("duration") or 0
-        if duration < filters["min_duration_sec"] or duration > filters["max_duration_sec"]:
-            continue
-        if any(bad in title for bad in filters["blacklist_keywords"]):
-            continue
-        videos.append({
-            "video_id": item["id"],
-            "title": title,
-            "link": f"https://www.youtube.com/watch?v={item['id']}",
-            "author": item.get("uploader", "未知頻道"),
-            "description": item.get("description", ""),
-            "published": item.get("upload_date", "最新")
-        })
-    return videos
+    
+    max_retries = 3
+    initial_timeout = 90
+    for attempt in range(max_retries):
+        try:
+            current_timeout = initial_timeout * (1 + attempt * 0.5)
+            print(f"嘗試搜尋主題 '{query}' (第 {attempt + 1}/{max_retries} 次, 超時 {current_timeout} 秒)...")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=current_timeout)
+            videos = []
+            for line in result.stdout.strip().split("\n"):
+                if not line:
+                    continue
+                try:
+                    item = json.loads(line)
+                    title = item.get("title", "")
+                    duration = item.get("duration") or 0
+                    if duration < filters["min_duration_sec"] or duration > filters["max_duration_sec"]:
+                        continue
+                    if any(bad in title for bad in filters["blacklist_keywords"]):
+                        continue
+                    videos.append({
+                        "video_id": item["id"],
+                        "title": title,
+                        "link": f"https://www.youtube.com/watch?v={item['id']}",
+                        "author": item.get("uploader", "未知頻道"),
+                        "description": item.get("description", ""),
+                        "published": item.get("upload_date", "最新")
+                    })
+                except json.JSONDecodeError as e:
+                    print(f"警告: 解析 yt-dlp 輸出時發生 JSON 錯誤，跳過該行: {line}. 錯誤: {e}")
+                    continue
+            return videos
+        except subprocess.CalledProcessError as e:
+            error_msg = f"yt-dlp 執行失敗，無法搜尋主題 '{query}': {e.stderr.strip()}"
+            if attempt < max_retries - 1:
+                print(f"警告: {error_msg}，將在 {attempt + 1} 秒後重試...")
+                time.sleep(attempt + 1)
+            else:
+                print(error_msg)
+                return []
+        except subprocess.TimeoutExpired:
+            error_msg = f"yt-dlp 搜尋主題 '{query}' 時超時 (超時時間: {current_timeout} 秒)。"
+            if attempt < max_retries - 1:
+                print(f"警告: {error_msg}，將在 {attempt + 1} 秒後重試...")
+                time.sleep(attempt + 1)
+            else:
+                print(error_msg)
+                return []
+        except Exception as e:
+            error_msg = f"搜尋主題 '{query}' 時發生未知錯誤: {e}"
+            if attempt < max_retries - 1:
+                print(f"警告: {error_msg}，將在 {attempt + 1} 秒後重試...")
+                time.sleep(attempt + 1)
+            else:
+                print(error_msg)
+                return []
+    return []
 
 def main():
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -199,17 +252,14 @@ def main():
     id_cache = load_json(CACHE_FILE, {})
     new_seen = list(seen_videos)
 
-    # 1. 執行引擎 A：固定頻道 RSS
     for ch in config["channels"]:
-        # resolve_channel_id 函數已更新，能夠更穩定地將 Handle 或 URL 解析為頻道 ID。
         try:
             ch_id = resolve_channel_id(ch["handle"], id_cache)
         except ValueError as e:
             print(f"處理頻道 '{ch['handle']}' 時跳過，原因: {e}")
-            continue # 如果解析頻道 ID 失敗，則跳過此頻道
+            continue
 
         feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={ch_id}")
-        # 每次只檢查最新 2 部，避免初次啟動洗版
         for entry in feed.entries[:2]:
             vid = entry.yt_videoid
             if vid in new_seen:
@@ -222,29 +272,33 @@ def main():
                 "description": entry.get("summary", ""),
                 "published": entry.get("published", "")[:10]
             }
-            transcript = fetch_transcript(vid)
-            review = analyze_video(client, video["title"], video["description"], transcript, ch["category"])
-            webhook_url = os.environ.get(config["webhooks"][ch["webhook"]])
-            send_discord(webhook_url, ch["category"].upper(), video, review)
-            new_seen.append(vid)
+            try:
+                transcript = fetch_transcript(vid)
+                review = analyze_video(client, video["title"], video["description"], transcript, ch["category"])
+                webhook_url = os.environ.get(config["webhooks"][ch["webhook"]])
+                send_discord(webhook_url, ch["category"].upper(), video, review)
+                new_seen.append(vid)
+            except Exception as e:
+                print(f"處理影片 '{video['title']}' ({vid}) 時發生錯誤: {e}")
             time.sleep(2)
 
-    # 2. 執行引擎 B：花蓮 / 宜蘭主題雷達
     for radar in config["topic_radars"]:
         candidates = search_topic_videos(radar["query"], config["radar_filters"])
         for video in candidates:
             vid = video["video_id"]
             if vid in new_seen:
                 continue
-            transcript = fetch_transcript(vid)
-            review = analyze_video(client, video["title"], video["description"], transcript, radar["category"])
-            if review.score >= radar["min_score"]:
-                webhook_url = os.environ.get(config["webhooks"][radar["webhook"]])
-                send_discord(webhook_url, radar["tag"], video, review)
-            new_seen.append(vid)
+            try:
+                transcript = fetch_transcript(vid)
+                review = analyze_video(client, video["title"], video["description"], transcript, radar["category"])
+                if review.score >= radar["min_score"]:
+                    webhook_url = os.environ.get(config["webhooks"][radar["webhook"]])
+                    send_discord(webhook_url, radar["tag"], video, review)
+                new_seen.append(vid)
+            except Exception as e:
+                print(f"處理影片 '{video['title']}' ({vid}) 時發生錯誤: {e}")
             time.sleep(2)
 
-    # 僅保留最近 500 筆紀錄避免檔案膨脹
     save_json(SEEN_FILE, new_seen[-500:])
 
 if __name__ == "__main__":
