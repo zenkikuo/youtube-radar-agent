@@ -1,1 +1,95 @@
-webhooks:  cooking_life: "DISCORD_WEBHOOK_LIFE"  travel_local: "DISCORD_WEBHOOK_TRAVEL"  sports: "DISCORD_WEBHOOK_SPORTS"channels:  # --- 料理實作 (cooking) ---  - name: "阿慶師"    handle: "@achingchef"    category: "cooking"    webhook: "cooking_life"  - name: "晴天媽媽"    handle: "@sunny_mama"    category: "cooking"    webhook: "cooking_life"  - name: "處女座媽媽"    handle: "@virgomama"    category: "cooking"    webhook: "cooking_life"  - name: "albee三寶媽"    handle: "@albeelife"    category: "cooking"    webhook: "cooking_life"  # --- 旅遊露營 (travel_outdoor) ---  - name: "營火部落"    handle: "@campfiretw"    category: "travel_outdoor"    webhook: "travel_local"  - name: "chill先生一家人"    handle: "@mrchillfamily"    category: "travel_outdoor"    webhook: "travel_local"  - name: "e家愛吃愛旅遊"    handle: "@e_family_travel"  # Fixed handle    category: "travel_outdoor"    webhook: "travel_local"  - name: "山步五時"    handle: "@SANDYBOOKU"    category: "travel_outdoor"    webhook: "travel_local"  - name: "zoebitalk肉比頭"    channel_id: "UC3wvDkvdrCsxlR6OpRhZtLg"    handle: "@zoebitalk"    category: "travel_outdoor"    webhook: "travel_local"  # --- 生活娛樂 (lifestyle) ---  - name: "壹加壹"    channel_id: "UCmArFxfDybtCbo0Fa0Z2xxA"    handle: "@illyandlean"    category: "lifestyle"    webhook: "cooking_life"  - name: "金魚腦"    handle: "@GoldfishBrain"    category: "lifestyle"    webhook: "cooking_life"  - name: "馬鈴薯小姐"    handle: "@misspotato"    category: "lifestyle"    webhook: "cooking_life"  # --- 職業運動與球評 (sports) ---  - name: "愛爾達體育家族"    handle: "@ELTASPORTSHD"    category: "sports"    webhook: "sports"  - name: "NBA"    channel_id: "UCWJ2lWNubArHWmf3FIHbfcQ"    handle: "@NBA"    category: "sports"    webhook: "sports"  - name: "MLB"    channel_id: "UCoLrcjPV5PbUrUyXq5mjc_A"    handle: "@MLB"    category: "sports"    webhook: "sports"  - name: "克里夫三"    handle: "@cliff3"    category: "sports"    webhook: "sports"topic_radars:  - tag: "花東雷達-花蓮"    query: "花蓮 美食 景點 2026"    category: "travel_outdoor"    webhook: "travel_local"    min_score: 4  - tag: "花東雷達-宜蘭"    query: "宜蘭 露營 親子 2026"    category: "travel_outdoor"    webhook: "travel_local"    min_score: 4radar_filters:  min_duration_sec: 240  max_duration_sec: 2400  blacklist_keywords: ["新聞", "氣象", "地震", "議會", "房仲", "建案", "行車紀錄"]
+webhooks:
+  life: "DISCORD_WEBHOOK_LIFE"
+  travel: "DISCORD_WEBHOOK_TRAVEL"
+  sports: "DISCORD_WEBHOOK_SPORTS"
+
+channels:
+  # 料理與生活 (life)
+  - name: "阿慶師"
+    handle: "@achingchef"
+    category: "cooking"
+    webhook: "life"
+  - name: "肥大叔"
+    handle: "@fatuncle"
+    category: "cooking"
+    webhook: "life"
+  - name: "克里斯餐桌"
+    handle: "@chris_table"
+    category: "cooking"
+    webhook: "life"
+  - name: "詹姆士姆士流官方專屬頻道"
+    handle: "@james_cooking"
+    category: "cooking"
+    webhook: "life"
+  - name: "料理123"
+    handle: "@wecook123"
+    category: "cooking"
+    webhook: "life"
+  - name: "壹加壹"
+    handle: "@illyandlean"
+    category: "lifestyle"
+    webhook: "life"
+
+  # 旅遊與戶外露營 (travel)
+  - name: "營火部落達哥"
+    handle: "@campfire_tw"
+    category: "travel_outdoor"
+    webhook: "travel"
+  - name: "旅遊真台灣"
+    handle: "@travel_real_taiwan"
+    category: "travel_outdoor"
+    webhook: "travel"
+  - name: "旅行優先"
+    handle: "@travel_first"
+    category: "travel_outdoor"
+    webhook: "travel"
+  - name: "安啾咪"
+    handle: "@anjou"
+    category: "travel_outdoor"
+    webhook: "travel"
+  - name: "融融歷險記Ben's Adventure"
+    handle: "@bensadventure"
+    category: "travel_outdoor"
+    webhook: "travel"
+  - name: "小象愛出門"
+    handle: "@elephantgogo"
+    category: "travel_outdoor"
+    webhook: "travel"
+
+  # 運動與籃球球評 (sports)
+  - name: "克里夫三"
+    handle: "@cliff3"
+    category: "sports"
+    webhook: "sports"
+  - name: "GM的NBA垃圾話"
+    handle: "@gm_nba"
+    category: "sports"
+    webhook: "sports"
+  - name: "愛爾達體育家族 ELTA Sports"
+    handle: "@ELTASPORTSHD"
+    category: "sports"
+    webhook: "sports"
+  - name: "NBA"
+    handle: "@NBA"
+    category: "sports"
+    webhook: "sports"
+
+topic_radars:
+  - tag: "花蓮情報"
+    query: "花蓮 露營 景點 美食 2026"
+    min_score: 4
+    webhook: "travel"
+  - tag: "宜蘭情報"
+    query: "宜蘭 露營 親子 景點 2026"
+    min_score: 4
+    webhook: "travel"
+
+radar_filters:
+  min_duration_sec: 240
+  max_duration_sec: 3600
+  blacklist_keywords:
+    - "#shorts"
+    - "Shorts"
+    - "預告"
+    - "精華剪輯"
+    - "純音樂"
