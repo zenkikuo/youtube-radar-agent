@@ -1,28 +1,32 @@
-yt-dlp 解析頻道 Handle ID '@achingchef' 時超時。
-Traceback (most recent call last):
-  File "/home/runner/work/youtube-radar-agent/youtube-radar-agent/main.py", line 86, in resolve_channel_id
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=15)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/subprocess.py", line 550, in run
-    stdout, stderr = process.communicate(input, timeout=timeout)
-                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/subprocess.py", line 1209, in communicate
-    stdout, stderr = self._communicate(input, endtime, timeout)
-                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/subprocess.py", line 2116, in _communicate
-    self._check_timeout(endtime, orig_timeout, stdout, stderr)
-  File "/opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/subprocess.py", line 1253, in _check_timeout
-    raise TimeoutExpired(
-subprocess.TimeoutExpired: Command '['yt-dlp', '--print', 'channel_id', 'https://www.youtube.com/@achingchef', '--no-warnings']' timed out after 15 seconds
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "/home/runner/work/youtube-radar-agent/youtube-radar-agent/main.py", line 245, in <module>
-    main()
-  File "/home/runner/work/youtube-radar-agent/youtube-radar-agent/main.py", line 204, in main
-    ch_id = resolve_channel_id(ch["handle"], id_cache)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/runner/work/youtube-radar-agent/youtube-radar-agent/main.py", line 103, in resolve_channel_id
-    raise ValueError(f"yt-dlp 無法解析頻道 Handle ID (超時): {handle}")
-ValueError: yt-dlp 無法解析頻道 Handle ID (超時): @achingchef
+yt-dlp 解析頻道 Handle ID '@achingchef' 時超時。請嘗試再次執行或檢查網路連線。
+處理頻道 '@achingchef' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID (超時): @achingchef
+解析頻道 Handle ID '@sunny_mama' 時發生未知錯誤: yt-dlp 執行成功但無法解析出有效的頻道 ID (UC開頭且長度24): '' for handle: @sunny_mama
+處理頻道 '@sunny_mama' 時跳過，原因: 未知錯誤，無法解析頻道 Handle ID: @sunny_mama
+解析頻道 Handle ID '@virgomama' 時發生未知錯誤: yt-dlp 執行成功但無法解析出有效的頻道 ID (UC開頭且長度24): '' for handle: @virgomama
+處理頻道 '@virgomama' 時跳過，原因: 未知錯誤，無法解析頻道 Handle ID: @virgomama
+yt-dlp 執行失敗，無法解析頻道 Handle ID '@albee3mama': ERROR: [youtube:tab] @albee3mama: Unable to download API page: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+處理頻道 '@albee3mama' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID: @albee3mama
+yt-dlp 解析頻道 Handle ID '@campfiretw' 時超時。請嘗試再次執行或檢查網路連線。
+處理頻道 '@campfiretw' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID (超時): @campfiretw
+解析頻道 Handle ID '@mrchillfamily' 時發生未知錯誤: yt-dlp 執行成功但無法解析出有效的頻道 ID (UC開頭且長度24): '' for handle: @mrchillfamily
+處理頻道 '@mrchillfamily' 時跳過，原因: 未知錯誤，無法解析頻道 Handle ID: @mrchillfamily
+yt-dlp 執行失敗，無法解析頻道 Handle ID '@efamilytravel': ERROR: [youtube:tab] @efamilytravel: Unable to download API page: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+處理頻道 '@efamilytravel' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID: @efamilytravel
+yt-dlp 執行失敗，無法解析頻道 Handle ID '@shanbu50': ERROR: [youtube:tab] @shanbu50: Unable to download API page: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+處理頻道 '@shanbu50' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID: @shanbu50
+yt-dlp 解析頻道 Handle ID '@zoebitalk' 時超時。請嘗試再次執行或檢查網路連線。
+處理頻道 '@zoebitalk' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID (超時): @zoebitalk
+yt-dlp 解析頻道 Handle ID '@illyandlean' 時超時。請嘗試再次執行或檢查網路連線。
+處理頻道 '@illyandlean' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID (超時): @illyandlean
+yt-dlp 解析頻道 Handle ID '@GoldfishBrain' 時超時。請嘗試再次執行或檢查網路連線。
+處理頻道 '@GoldfishBrain' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID (超時): @GoldfishBrain
+yt-dlp 執行失敗，無法解析頻道 Handle ID '@miss_potato': ERROR: [youtube:tab] @miss_potato: Unable to download API page: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)
+處理頻道 '@miss_potato' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID: @miss_potato
+yt-dlp 解析頻道 Handle ID '@ELTASPORTSHD' 時超時。請嘗試再次執行或檢查網路連線。
+處理頻道 '@ELTASPORTSHD' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID (超時): @ELTASPORTSHD
+yt-dlp 解析頻道 Handle ID '@NBA' 時超時。請嘗試再次執行或檢查網路連線。
+處理頻道 '@NBA' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID (超時): @NBA
+yt-dlp 解析頻道 Handle ID '@MLB' 時超時。請嘗試再次執行或檢查網路連線。
+處理頻道 '@MLB' 時跳過，原因: yt-dlp 無法解析頻道 Handle ID (超時): @MLB
+解析頻道 Handle ID '@cliff3' 時發生未知錯誤: yt-dlp 執行成功但無法解析出有效的頻道 ID (UC開頭且長度24): '' for handle: @cliff3
+處理頻道 '@cliff3' 時跳過，原因: 未知錯誤，無法解析頻道 Handle ID: @cliff3
