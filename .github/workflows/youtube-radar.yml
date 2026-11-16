@@ -2,8 +2,8 @@ name: YouTube Radar Main Agent
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # 每 3 小時執行一次
-  workflow_dispatch:       # 支援手動一鍵測試
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
