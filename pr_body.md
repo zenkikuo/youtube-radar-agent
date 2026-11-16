@@ -1,5 +1,5 @@
 ### 🔍 AI 根因診斷
-在 main.py 的第 310 行處，建立 batch_input 列表時遺漏了結尾的括號 `}`。具體為 `"description": v["description"` 少了一個右大括號，導致 SyntaxError 錯誤。
+config.yaml 的第一行第二十四個字元附近（或整個檔案的縮排/格式）包含了 YAML 不允許的字元或格式錯誤，導致 yaml.safe_load 拋出 `mapping values are not allowed here` 異常。
 
 ### 🛠️ 修復策略
-在第 310 行的 `v["description"` 後方補上缺少的右大括號 `}`，使字典構造語法正確。
+在讀取 config.yaml 時加入更具防禦性的錯誤處理與日誌提示，並確保 YAML 內容在解析失敗時不會直接崩潰，同時提供預設防呆結構或清楚指示使用者檢查 YAML 語法。

@@ -251,6 +251,8 @@ def main():
             raise FileNotFoundError("找不到 config.yaml 檔案，請確認是否正確產生")
         with open("config.yaml", "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
+        if not isinstance(config, dict):
+            raise ValueError("config.yaml 格式錯誤，根節點必須是 dict 映射結構")
     except Exception as e:
         log(f"❌ 讀取或解析 config.yaml 失敗: {e}")
         sys.exit(1)
