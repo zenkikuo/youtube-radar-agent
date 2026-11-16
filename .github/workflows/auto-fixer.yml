@@ -38,7 +38,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python - << 'EOF'
-          import os, subprocess
+          import os
           from pydantic import BaseModel, Field
           from google import genai
           from google.genai import types
@@ -61,23 +61,29 @@ jobs:
           【目前 main.py】：
           {main_code}
           """
-          res = client.models.generate_content(
-              model="gemini-2.5-flash",
-              contents=prompt,
-              config=types.GenerateContentConfig(
-                  response_mime_type="application/json",
-                  response_schema=FixPlan,
-                  temperature=0.1,
-              ),
-          )
-          plan = res.parsed
-          with open("main.py", "w", encoding="utf-8") as f:
-              f.write(plan.fixed_main_py.strip())
-          with open("pr_body.md", "w", encoding="utf-8") as f:
-              f.write(f"### 🔍 AI 根因診斷\n{plan.root_cause}\n\n### 🛠️ 修復策略\n{plan.fix_strategy}")
+          try:
+              res = client.models.generate_content(
+                  model="gemini-2.5-flash-lite",
+                  contents=prompt,
+                  config=types.GenerateContentConfig(
+                      response_mime_type="application/json",
+                      response_schema=FixPlan,
+                      temperature=0.1,
+                  ),
+              )
+              plan = res.parsed
+              with open("main.py", "w", encoding="utf-8") as f:
+                  f.write(plan.fixed_main_py.strip())
+              with open("pr_body.md", "w", encoding="utf-8") as f:
+                  f.write(f"### 🔍 AI 根因診斷\n{plan.root_cause}\n\n### 🛠️ 修復策略\n{plan.fix_strategy}")
+              with open("has_patch.txt", "w") as f:
+                  f.write("true")
+          except Exception as e:
+              print(f"⚠️ Auto-Fixer 略過（API 額度冷卻或分析異常）：{e}")
           EOF
 
       - name: Create Fix Pull Request
+        if: hashFiles('has_patch.txt') != ''
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
