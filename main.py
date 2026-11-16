@@ -294,7 +294,7 @@ def main():
             except Exception as e:
                 log(f"❌ 審閱或推播失敗 ({vid}): {e}")
                 report["error_count"] += 1
-            time.sleep(1)
+            time.sleep(4)
 
     # 2. 引擎 B：花蓮 / 宜蘭主題雷達
     for radar in config["topic_radars"]:
@@ -325,7 +325,7 @@ def main():
             except Exception as e:
                 log(f"❌ 雷達影片審閱失敗 ({vid}): {e}")
                 report["error_count"] += 1
-            time.sleep(1)
+            time.sleep(4)
 
     save_json(SEEN_FILE, new_seen[-500:])
     save_json(REPORT_FILE, report)
