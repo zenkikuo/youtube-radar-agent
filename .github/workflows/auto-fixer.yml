@@ -59,7 +59,7 @@ jobs:
 
           recent_diff = subprocess.getoutput("git diff HEAD~1 HEAD")[-3000:]
 
-          client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+          client = genai.Client(api_key=os.environ["GEMINI_API_KEY"], http_options={"api_version": "v1beta"})
           prompt = f"""
           你是資深 Python 系統架構師。主線腳本在 GitHub Actions 執行失敗，請進行深度根因分析並修復。
           【工程鐵律】：
