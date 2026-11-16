@@ -1,5 +1,5 @@
 ### 🔍 AI 根因診斷
-config.yaml 檔案第一行第二十四個字元（或其附近結構）包含不合法的 YAML 對應值格式錯誤（例如未正確縮排、冒號後缺少空格或字串引用不全），導致 PyYAML 解析失敗並丟出 mapping values are not allowed here 異常。
+在 call_gemini_smart 函式中，當 Google GenAI SDK 呼叫失敗或模型回應不符合預期（例如回傳型態非預期、或某些情況下回傳了 None），response.parsed 可能為 None。當後續程式碼直接嘗試對回傳結果進行屬性存取或解構時（例如 batch_res.items 或 review.score），就會引發 'NoneType' object is not subscriptable 或屬性錯誤，導致腳本崩潰。
 
 ### 🛠️ 修復策略
-在 main.py 的 YAML 讀取防護邏輯中加入更詳細的例外捕獲與提示，並確保即使 config.yaml 格式錯誤也能提供友善的錯誤診斷指引，同時由於此錯誤源自外部設定檔語法，程式碼本身已妥善捕捉 yaml.YAMLError，確保環境部署時檢查 config.yaml 的格式正確性即可。
+在 call_gemini_smart 函式中增加對 response.parsed 是否為 None 的防禦性檢查；同時在主流程呼叫模型後檢查回傳物件是否有效，若為 None 則主動拋出例外或略過，避免型態錯誤導致未預期中斷。

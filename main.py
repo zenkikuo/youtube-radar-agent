@@ -22,7 +22,7 @@ MODEL_POOL = ["gemini-2.5-flash", "gemini-3.5-flash-lite"]
 RADAR_AUDIT_PROMPT = """
 你是一位精打細算的台灣自由行與露營規劃師。請嚴格審閱這部陌生頻道的旅遊/露營影片：
 1. 強制提取具體資訊：營區或店家名稱、所在鄉鎮、交通/停車提示、真實優缺點或避坑提醒。
-2. 評分標準：必須包含具體新開幕店家、秘境或親子實用資訊才給 4~5 分；若是純風景配樂、標題黨、業配文或無具體地點資訊的流水帳，直接給 1~2 分。
+2. 評分標準：必須包含具體新開幕店家、秘境或親子實用資訊才給 4~5 分;若是純風景配樂、標題黨、業配文或無具體地點資訊的流水帳，直接給 1~2 分。
 """
 
 class SingleChannelPreview(BaseModel):
@@ -67,16 +67,18 @@ def call_gemini_smart(client: genai.Client, prompt: str, schema):
                     temperature=0.2,
                 ),
             )
-            log(f"🤖 模型 {model_name} 審閱完成")
-            return response.parsed
+            if response and response.parsed:
+                log(f"🤖 模型 {model_name} 審閱完成")
+                return response.parsed
+            log(f"⚠️ 模型 {model_name} 回傳內容解析為空，切換下一個備援模型...")
         except Exception as e:
             err_str = str(e)
             if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
                 log(f"⚠️ 模型 {model_name} 觸及配額上限，切換下一個備援模型...")
                 time.sleep(3)
                 continue
-            raise
-    raise QuotaExhaustedError("所有免費模型今日配額皆已用盡")
+            log(f"⚠️ 模型 {model_name} 發生錯誤: {e}")
+    raise QuotaExhaustedError("所有免費模型今日配額皆已用盡或回傳無效")
 
 def resolve_channel_id(ch: dict, cache: dict) -> str:
     name = ch["name"]
@@ -328,15 +330,16 @@ def main():
             {json.dumps(batch_input, ensure_ascii=False)}
             """
             batch_res: BatchChannelPreviews = call_gemini_smart(client, batch_prompt, BatchChannelPreviews)
-            for item in batch_res.items:
-                v = channel_new_videos.get(item.video_id)
-                if not v:
-                    continue
-                webhook_url = os.environ.get(config.get("webhooks", {}).get(v["webhook"], ""))
-                send_discord_channel_card(webhook_url, v, item)
-                report["channel_pushed"].append({"author": v["author"], "title": v["title"], "note": item.quick_note})
-                new_seen.append(item.video_id)
-                time.sleep(1)
+            if batch_res and batch_res.items:
+                for item in batch_res.items:
+                    v = channel_new_videos.get(item.video_id)
+                    if not v:
+                        continue
+                    webhook_url = os.environ.get(config.get("webhooks", {}).get(v["webhook"], ""))
+                    send_discord_channel_card(webhook_url, v, item)
+                    report["channel_pushed"].append({"author": v["author"], "title": v["title"], "note": item.quick_note})
+                    new_seen.append(item.video_id)
+                    time.sleep(1)
 
         for radar in config.get("topic_radars", []):
             candidates = search_topic_videos(radar["query"], config.get("radar_filters", {}))
@@ -348,13 +351,14 @@ def main():
                 content = transcript[:10000] if transcript else f"（無字幕，僅提供簡介）：{video['description'][:1200]}"
                 prompt = f"【嚴格審閱準則】：{RADAR_AUDIT_PROMPT}\n【標題】：{video['title']}\n【內容】：{content}"
                 review: RadarReview = call_gemini_smart(client, prompt, RadarReview)
-                if review.score >= radar["min_score"]:
-                    webhook_url = os.environ.get(config.get("webhooks", {}).get(radar["webhook"], ""))
-                    send_discord_radar_card(webhook_url, radar["tag"], video, review)
-                    report["radar_pushed"].append({"tag": radar["tag"], "title": video["title"], "score": review.score})
-                else:
-                    log(f"🗑️ [雷達過濾 {review.score}分] {video['title']}")
-                    report["radar_filtered_out"] += 1
+                if review:
+                    if review.score >= radar["min_score"]:
+                        webhook_url = os.environ.get(config.get("webhooks", {}).get(radar["webhook"], ""))
+                        send_discord_radar_card(webhook_url, radar["tag"], video, review)
+                        report["radar_pushed"].append({"tag": radar["tag"], "title": video["title"], "score": review.score})
+                    else:
+                        log(f"🗑️ [雷達過濾 {review.score}分] {video['title']}")
+                        report["radar_filtered_out"] += 1
                 new_seen.append(vid)
                 time.sleep(3)
 
