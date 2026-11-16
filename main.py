@@ -17,7 +17,6 @@ SEEN_FILE = "seen_videos.json"
 CACHE_FILE = "channel_id_cache.json"
 REPORT_FILE = "run_report.json"
 
-# 免費額度分流模型池（按模型獨立計算每日 RPD 配額，2.5-flash 冷卻時自動改用 2.5-flash-lite）
 MODEL_POOL = ["gemini-2.5-flash", "gemini-3.5-flash-lite"]
 
 RADAR_AUDIT_PROMPT = """
@@ -26,7 +25,6 @@ RADAR_AUDIT_PROMPT = """
 2. 評分標準：必須包含具體新開幕店家、秘境或親子實用資訊才給 4~5 分；若是純風景配樂、標題黨、業配文或無具體地點資訊的流水帳，直接給 1~2 分。
 """
 
-# 軌道 A 批次結構：1 次 API 請求處理所有常看頻道新片
 class SingleChannelPreview(BaseModel):
     video_id: str = Field(description="對應輸入的 video_id")
     bullets: list[str] = Field(description="3 個簡短重點預覽，每點不超過 35 字")
@@ -35,7 +33,6 @@ class SingleChannelPreview(BaseModel):
 class BatchChannelPreviews(BaseModel):
     items: list[SingleChannelPreview] = Field(description="所有輸入影片的摘要列表")
 
-# 軌道 B 單片深度審閱結構
 class RadarReview(BaseModel):
     score: int = Field(description="實用情報推薦評分 1 到 5 分")
     verdict: str = Field(description="例如：🟢 必看情報、🟡 普通參考、🔴 建議略過")
@@ -43,7 +40,6 @@ class RadarReview(BaseModel):
     reason: str = Field(description="一句話說明值得看或避雷的原因")
 
 class QuotaExhaustedError(Exception):
-    """當所有免費模型今日額度皆用盡時拋出，供主程式安全存檔退出"""
     pass
 
 def log(msg: str):
@@ -60,7 +56,6 @@ def save_json(path: str, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def call_gemini_smart(client: genai.Client, prompt: str, schema):
-    """自動在多個免費模型間切換，遇到單日配額耗盡時平滑降級"""
     for model_name in MODEL_POOL:
         try:
             response = client.models.generate_content(
@@ -251,8 +246,12 @@ def main():
         raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
     client = genai.Client(api_key=api_key, http_options={"api_version": "v1beta"})
 
-    with open("config.yaml", "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    try:
+        with open("config.yaml", "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+    except Exception as e:
+        log(f"❌ 讀取或解析 config.yaml 失敗: {e}")
+        sys.exit(1)
 
     seen_videos = load_json(SEEN_FILE, [])
     id_cache = load_json(CACHE_FILE, {})
@@ -269,9 +268,6 @@ def main():
     }
 
     try:
-        # ==========================================
-        # 軌道 A：先蒐集所有常看頻道新片，打包成「1 次 API 請求」
-        # ==========================================
         channel_new_videos = {}
         for ch in config["channels"]:
             try:
@@ -335,9 +331,6 @@ def main():
                 new_seen.append(item.video_id)
                 time.sleep(1)
 
-        # ==========================================
-        # 軌道 B：花蓮 / 宜蘭主題雷達（嚴格抓字幕評分排雷，每組最多審 2 部）
-        # ==========================================
         for radar in config["topic_radars"]:
             candidates = search_topic_videos(radar["query"], config["radar_filters"])
             for video in candidates[:2]:
