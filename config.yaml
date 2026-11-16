@@ -1,10 +1,8 @@
-# Discord Webhooks 分流設定（建議對應 GitHub Secrets，或直接在此設定環境變數名稱）
 webhooks:
-  cooking_life: "DISCORD_WEBHOOK_LIFE"     # 料理與生活娛樂
-  travel_local: "DISCORD_WEBHOOK_TRAVEL"   # 旅遊露營與花蓮/宜蘭雷達
-  sports: "DISCORD_WEBHOOK_SPORTS"         # 職業運動與球評
+  cooking_life: "DISCORD_WEBHOOK_LIFE"
+  travel_local: "DISCORD_WEBHOOK_TRAVEL"
+  sports: "DISCORD_WEBHOOK_SPORTS"
 
-# 引擎 A：固定追蹤頻道清單
 channels:
   # --- 料理實作 (cooking) ---
   - name: "阿慶師"
@@ -38,16 +36,18 @@ channels:
     category: "travel_outdoor"
     webhook: "travel_local"
   - name: "山步五時"
-    handle: "@shanbu50"
+    handle: "@SANDYBOOKU"
     category: "travel_outdoor"
     webhook: "travel_local"
   - name: "zoebitalk肉比頭"
+    channel_id: "UC3wvDkvdrCsxlR6OpRhZtLg"
     handle: "@zoebitalk"
     category: "travel_outdoor"
     webhook: "travel_local"
 
   # --- 生活娛樂 (lifestyle) ---
   - name: "壹加壹"
+    channel_id: "UCmArFxfDybtCbo0Fa0Z25lQ"
     handle: "@illyandlean"
     category: "lifestyle"
     webhook: "cooking_life"
@@ -66,10 +66,12 @@ channels:
     category: "sports"
     webhook: "sports"
   - name: "NBA"
+    channel_id: "UCWJ2lWNubArHWmf3FIHbfcQ"
     handle: "@NBA"
     category: "sports"
     webhook: "sports"
   - name: "MLB"
+    channel_id: "UCoLrcjPV5PbUrUyXq5mjc_A"
     handle: "@MLB"
     category: "sports"
     webhook: "sports"
@@ -78,21 +80,19 @@ channels:
     category: "sports"
     webhook: "sports"
 
-# 引擎 B：花蓮與宜蘭全網主題關鍵字雷達
 topic_radars:
   - tag: "花東雷達-花蓮"
-    query: "花蓮 美食 OR 秘境 OR 新開幕 OR 親子"
+    query: "花蓮 美食 秘境 親子"
     category: "travel_outdoor"
     webhook: "travel_local"
-    min_score: 4  # 嚴格過濾，4分以上才推播
+    min_score: 4
   - tag: "花東雷達-宜蘭"
-    query: "宜蘭 露營 OR 美食 OR 景點 OR 親子"
+    query: "宜蘭 露營 美食 景點"
     category: "travel_outdoor"
     webhook: "travel_local"
     min_score: 4
 
-# 引擎 B 程式端硬性過濾條件
 radar_filters:
-  min_duration_sec: 240    # 排除 4 分鐘以下短影音 Shorts
-  max_duration_sec: 2400   # 排除 40 分鐘以上直播存檔
+  min_duration_sec: 240
+  max_duration_sec: 2400
   blacklist_keywords: ["新聞", "氣象", "地震", "議會", "房仲", "建案", "行車紀錄"]
