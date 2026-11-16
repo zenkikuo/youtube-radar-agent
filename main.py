@@ -15,6 +15,7 @@ from google.genai import types
 
 SEEN_FILE = "seen_videos.json"
 CACHE_FILE = "channel_id_cache.json"
+REPORT_FILE = "run_report.json"
 
 CATEGORY_PROMPTS = {
     "cooking": """
@@ -96,6 +97,7 @@ def resolve_channel_id(ch: dict, cache: dict) -> str:
         except Exception as e:
             log(f"⚠️ 網頁解析 {name} 異常: {e}")
 
+    # 備援：用 yt-dlp 搜尋頻道名稱第 1 筆影片提取 channel_id
     try:
         cmd = [
             "yt-dlp",
@@ -184,6 +186,7 @@ def search_topic_videos(query: str, filters: dict) -> list[dict]:
         return []
 
     videos = []
+    sixty_days_ago = datetime.now(timezone.utc) - timedelta(days=60)
     for line in result.stdout.strip().split("\n"):
         if not line:
             continue
@@ -197,17 +200,28 @@ def search_topic_videos(query: str, filters: dict) -> list[dict]:
                 continue
             if any(bad in title for bad in filters["blacklist_keywords"]):
                 continue
+
+            # 時效性過濾：擋掉超過 60 天的舊影片（如 2024 攻略）
+            upload_date = item.get("upload_date", "")
+            if upload_date and len(upload_date) == 8:
+                try:
+                    up_dt = datetime.strptime(upload_date, "%Y%m%d").replace(tzinfo=timezone.utc)
+                    if up_dt < sixty_days_ago:
+                        continue
+                except ValueError:
+                    pass
+
             videos.append({
                 "video_id": item["id"],
                 "title": title,
                 "link": f"https://www.youtube.com/watch?v={item['id']}",
                 "author": item.get("uploader", "未知頻道"),
                 "description": item.get("description", ""),
-                "published": item.get("upload_date", "最新")
+                "published": upload_date or "近期"
             })
         except Exception:
             continue
-    log(f"🔍 主題雷達找到 {len(videos)} 部符合條件的候選影片")
+    log(f"🔍 主題雷達找到 {len(videos)} 部符合條件的新鮮候選影片")
     return videos
 
 def main():
@@ -224,7 +238,15 @@ def main():
     id_cache = load_json(CACHE_FILE, {})
     new_seen = list(seen_videos)
     seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
-    error_count = 0
+
+    report = {
+        "run_at": datetime.now(timezone.utc).isoformat(),
+        "skipped_channels": [],
+        "reviewed_count": 0,
+        "pushed_videos": [],
+        "filtered_out_count": 0,
+        "error_count": 0
+    }
 
     # 1. 引擎 A：固定頻道 RSS
     for ch in config["channels"]:
@@ -232,6 +254,7 @@ def main():
             ch_id = resolve_channel_id(ch, id_cache)
         except ValueError as e:
             log(f"⏭️ 跳過頻道 {ch['name']}：{e}")
+            report["skipped_channels"].append(ch["name"])
             continue
 
         feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={ch_id}")
@@ -257,12 +280,20 @@ def main():
             try:
                 transcript = fetch_transcript(vid)
                 review = analyze_video(client, video["title"], video["description"], transcript, ch["category"])
+                report["reviewed_count"] += 1
                 webhook_url = os.environ.get(config["webhooks"][ch["webhook"]])
                 send_discord(webhook_url, ch["category"].upper(), video, review)
+                report["pushed_videos"].append({
+                    "category": ch["category"],
+                    "author": ch["name"],
+                    "title": video["title"],
+                    "score": review.score,
+                    "reason": review.reason
+                })
                 new_seen.append(vid)
             except Exception as e:
                 log(f"❌ 審閱或推播失敗 ({vid}): {e}")
-                error_count += 1
+                report["error_count"] += 1
             time.sleep(1)
 
     # 2. 引擎 B：花蓮 / 宜蘭主題雷達
@@ -276,20 +307,31 @@ def main():
             try:
                 transcript = fetch_transcript(vid)
                 review = analyze_video(client, video["title"], video["description"], transcript, radar["category"])
+                report["reviewed_count"] += 1
                 if review.score >= radar["min_score"]:
                     webhook_url = os.environ.get(config["webhooks"][radar["webhook"]])
                     send_discord(webhook_url, radar["tag"], video, review)
+                    report["pushed_videos"].append({
+                        "category": radar["tag"],
+                        "author": video["author"],
+                        "title": video["title"],
+                        "score": review.score,
+                        "reason": review.reason
+                    })
                 else:
                     log(f"🗑️ 評分未達標 ({review.score}分)，略過：{video['title']}")
+                    report["filtered_out_count"] += 1
                 new_seen.append(vid)
             except Exception as e:
                 log(f"❌ 雷達影片審閱失敗 ({vid}): {e}")
-                error_count += 1
+                report["error_count"] += 1
             time.sleep(1)
 
     save_json(SEEN_FILE, new_seen[-500:])
-    if error_count > 0:
-        log(f"⚠️ 本輪共發生 {error_count} 筆 API/推播異常，主動觸發 Auto-Fixer 診斷...")
+    save_json(REPORT_FILE, report)
+
+    if report["error_count"] > 0:
+        log(f"⚠️ 本輪共發生 {report['error_count']} 筆 API/推播異常，主動觸發 Auto-Fixer 診斷...")
         sys.exit(1)
     log("🏁 全部巡邏任務完成！")
 
