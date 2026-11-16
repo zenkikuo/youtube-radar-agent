@@ -82,8 +82,8 @@ def resolve_channel_id(handle: str, cache: dict) -> str:
     cmd = ["yt-dlp", "--print", "channel_id", input_identifier, "--no-warnings"]
     
     try:
-        # 使用 check=True 確保非零返回碼會觸發 CalledProcessError
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=15)
+        # 增加 yt-dlp 的超時時間，避免解析延遲導致失敗
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
         channel_id = result.stdout.strip()
         
         if channel_id and channel_id.startswith("UC") and len(channel_id) == 24:
@@ -99,7 +99,7 @@ def resolve_channel_id(handle: str, cache: dict) -> str:
         raise ValueError(f"yt-dlp 無法解析頻道 Handle ID: {handle}") from e
     except subprocess.TimeoutExpired:
         # yt-dlp 執行超時
-        print(f"yt-dlp 解析頻道 Handle ID '{handle}' 時超時。")
+        print(f"yt-dlp 解析頻道 Handle ID '{handle}' 時超時。請嘗試再次執行或檢查網路連線。")
         raise ValueError(f"yt-dlp 無法解析頻道 Handle ID (超時): {handle}")
     except Exception as e:
         # 捕獲其他未預期的錯誤
@@ -163,6 +163,7 @@ def search_topic_videos(query: str, filters: dict) -> list[dict]:
         "--flat-playlist",
         "--no-warnings"
     ]
+    # 搜尋主題影片的超時時間可以設定長一點
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     videos = []
     for line in result.stdout.strip().split("\n"):
@@ -201,7 +202,12 @@ def main():
     # 1. 執行引擎 A：固定頻道 RSS
     for ch in config["channels"]:
         # resolve_channel_id 函數已更新，能夠更穩定地將 Handle 或 URL 解析為頻道 ID。
-        ch_id = resolve_channel_id(ch["handle"], id_cache)
+        try:
+            ch_id = resolve_channel_id(ch["handle"], id_cache)
+        except ValueError as e:
+            print(f"處理頻道 '{ch['handle']}' 時跳過，原因: {e}")
+            continue # 如果解析頻道 ID 失敗，則跳過此頻道
+
         feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={ch_id}")
         # 每次只檢查最新 2 部，避免初次啟動洗版
         for entry in feed.entries[:2]:
