@@ -59,41 +59,64 @@ def save_json(path: str, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def resolve_channel_id(name: str, handle: str, cache: dict) -> str:
-    """快速解析頻道 UC ID（限制只抓 1 筆避免爬完整個頻道歷史）"""
-    if handle in cache:
-        return cache[handle]
-    if handle.startswith("UC") and len(handle) == 24:
-        cache[handle] = handle
-        save_json(CACHE_FILE, cache)
-        return handle
+def resolve_channel_id(ch: dict, cache: dict) -> str:
+    """多重備援解析頻道 UC ID（支援預設 ID 驗證、Consent Cookie 繞過、yt-dlp Android 偽裝搜尋）"""
+    name = ch["name"]
+    handle = ch.get("handle", "")
+    cache_key = handle or name
 
-    # 方法 1：直接抓頻道網頁原始碼提取 channelId（最快，約 0.5 秒）
-    url = f"https://www.youtube.com/{handle}" if handle.startswith("@") else f"https://www.youtube.com/@{handle}"
-    try:
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-        match = re.search(r'"channelId":"(UC[\w-]{22})"', resp.text)
-        if match:
-            ch_id = match.group(1)
-            cache[handle] = ch_id
+    if cache_key in cache:
+        return cache[cache_key]
+
+    # 1. 若 config 已提供 channel_id，先驗證該 RSS 是否有效
+    preset_id = ch.get("channel_id", "")
+    if preset_id.startswith("UC") and len(preset_id) == 24:
+        test_feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={preset_id}")
+        if test_feed.entries:
+            cache[cache_key] = preset_id
             save_json(CACHE_FILE, cache)
-            log(f"✅ 解析成功 {name} ({handle}) -> {ch_id}")
-            return ch_id
-    except Exception as e:
-        log(f"⚠️ 網頁解析 {name} 失敗: {e}")
+            log(f"✅ 驗證預設 ID 成功：{name} -> {preset_id}")
+            return preset_id
 
-    # 方法 2：備援用 yt-dlp 搜頻道名稱第 1 筆影片的 channel_id（嚴格限制 15 秒超時）
+    # 2. 帶入 CONSENT Cookie 抓取頻道首頁原始碼（繞過雲端 IP 同意閘道）
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+        "Cookie": "CONSENT=YES+cb.20210328-17-p0.en+FX+999"
+    }
+    if handle:
+        url = f"https://www.youtube.com/{handle}" if handle.startswith("@") else f"https://www.youtube.com/@{handle}"
+        try:
+            resp = requests.get(url, headers=headers, timeout=10)
+            match = re.search(r'"externalId":"(UC[\w-]{22})"', resp.text) or re.search(r'"channelId":"(UC[\w-]{22})"', resp.text)
+            if match:
+                ch_id = match.group(1)
+                cache[cache_key] = ch_id
+                save_json(CACHE_FILE, cache)
+                log(f"✅ 網頁解析成功：{name} ({handle}) -> {ch_id}")
+                return ch_id
+        except Exception as e:
+            log(f"⚠️ 網頁解析 {name} 異常: {e}")
+
+    # 3. 備援：用 yt-dlp Android Client 搜尋頻道名稱第 1 筆影片提取 channel_id
     try:
-        cmd = ["yt-dlp", f"ytsearch1:{name} YouTube", "--print", "channel_id", "--no-warnings"]
+        cmd = [
+            "yt-dlp",
+            f"ytsearch1:{name} YouTube",
+            "--print", "channel_id",
+            "--extractor-args", "youtube:player_client=android,web",
+            "--no-warnings"
+        ]
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-        ch_id = res.stdout.strip().splitlines()[0] if res.stdout.strip() else ""
-        if ch_id.startswith("UC") and len(ch_id) == 24:
-            cache[handle] = ch_id
+        lines = [l.strip() for l in res.stdout.strip().splitlines() if l.strip().startswith("UC")]
+        if lines and len(lines[0]) == 24:
+            ch_id = lines[0]
+            cache[cache_key] = ch_id
             save_json(CACHE_FILE, cache)
-            log(f"✅ 搜尋備援解析 {name} -> {ch_id}")
+            log(f"✅ 搜尋備援解析成功：{name} -> {ch_id}")
             return ch_id
     except Exception as e:
-        log(f"❌ 搜尋備援解析 {name} 失敗: {e}")
+        log(f"⚠️ 搜尋備援解析 {name} 異常: {e}")
 
     raise ValueError(f"無法解析頻道: {name} ({handle})")
 
@@ -149,17 +172,18 @@ def send_discord(webhook_url: str, tag: str, video: dict, review: VideoReview):
     log(f"📨 已推播至 Discord：[{tag}] {video['title']} ({review.score}分)")
 
 def search_topic_videos(query: str, filters: dict) -> list[dict]:
-    """引擎 B：快速搜尋全網主題影片（單次 20 秒超時保護）"""
+    """引擎 B：使用 Android Client 偽裝搜尋全網主題影片"""
     log(f"🔍 啟動主題雷達搜尋：{query}")
     cmd = [
         "yt-dlp",
-        f"ytsearchdate6:{query}",
+        f"ytsearchdate8:{query}",
         "--dump-json",
         "--flat-playlist",
+        "--extractor-args", "youtube:player_client=android,web",
         "--no-warnings"
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
     except Exception as e:
         log(f"⚠️ 主題雷達搜尋超時或失敗 ({query}): {e}")
         return []
@@ -209,13 +233,13 @@ def main():
     # 1. 引擎 A：固定頻道 RSS
     for ch in config["channels"]:
         try:
-            ch_id = resolve_channel_id(ch["name"], ch["handle"], id_cache)
+            ch_id = resolve_channel_id(ch, id_cache)
         except ValueError as e:
             log(f"⏭️ 跳過頻道 {ch['name']}：{e}")
             continue
 
         feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={ch_id}")
-        for entry in feed.entries[:2]:  # 每個頻道最多看最新 2 部
+        for entry in feed.entries[:2]:
             if hasattr(entry, 'published_parsed') and entry.published_parsed:
                 published_dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
                 if published_dt < three_days_ago:
@@ -247,7 +271,7 @@ def main():
     # 2. 引擎 B：花蓮 / 宜蘭主題雷達
     for radar in config["topic_radars"]:
         candidates = search_topic_videos(radar["query"], config["radar_filters"])
-        for video in candidates[:3]:  # 每個關鍵字每次最多審閱 3 部，避免超時
+        for video in candidates[:3]:
             vid = video["video_id"]
             if vid in new_seen:
                 continue
