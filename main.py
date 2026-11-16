@@ -60,28 +60,42 @@ def resolve_channel_id(handle: str, cache: dict, max_retries: int = 3, initial_t
     """
     透過 yt-dlp 或直接判斷來解析頻道 Handle 或 URL 為頻道 ID (UC開頭)。
     這是因為 YouTube 網頁結構變化，原始的 Regex 可能失效。
-    增加重試機制和更長的超時時間，以提高穩定性。
+    增加重試機制和更長的超時時間，並加入 uploader_id 作為解析 channel_id 的備援。
+    同時修正了 yt-dlp 輸入參數的構建邏輯，使其更能適應多種 YouTube 頻道識別方式。
     """
     if handle in cache:
         return cache[handle]
 
+    # If handle is already a valid UC-prefixed channel ID, save and return.
     if handle.startswith("UC") and len(handle) == 24 and re.match(r"UC[\w-]+", handle):
         cache[handle] = handle
         save_json(CACHE_FILE, cache)
         return handle
 
+    # Determine the most robust input identifier for yt-dlp
     input_identifier = handle
     if handle.startswith("@"):
         input_identifier = f"https://www.youtube.com/{handle}"
-    elif not (handle.startswith("http://") or handle.startswith("https://")):
+    elif handle.startswith(("http://", "https://")):
+        # It's already a full URL, use it as is.
+        pass
+    elif handle.startswith(("youtube.com/", "www.youtube.com/")):
+        # It's a bare domain, prepend https.
+        input_identifier = f"https://{handle}"
+    else:
+        # Assume it's a short ID/path (e.g., "CustomChannel", "user/LegacyUser", "c/Custom")
+        # yt-dlp often works best with a full YouTube URL in this context.
         input_identifier = f"https://www.youtube.com/{handle}"
 
+
     for attempt in range(max_retries):
-        cmd = ["yt-dlp", "--print", "channel_id", input_identifier, "--no-warnings"]
+        current_timeout = initial_timeout * (1 + attempt * 0.5)
+        print(f"嘗試解析頻道 Handle ID '{handle}' (第 {attempt + 1}/{max_retries} 次, 超時 {current_timeout} 秒)...")
+        
         try:
-            current_timeout = initial_timeout * (1 + attempt * 0.5)
-            print(f"嘗試解析頻道 Handle ID '{handle}' (第 {attempt + 1}/{max_retries} 次, 超時 {current_timeout} 秒)...")
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=current_timeout)
+            # --- Attempt 1: Get channel_id directly ---
+            cmd_channel_id = ["yt-dlp", "--print", "channel_id", input_identifier, "--no-warnings"]
+            result = subprocess.run(cmd_channel_id, capture_output=True, text=True, check=True, timeout=current_timeout)
             channel_id = result.stdout.strip()
             
             if channel_id and channel_id.startswith("UC") and len(channel_id) == 24:
@@ -90,12 +104,29 @@ def resolve_channel_id(handle: str, cache: dict, max_retries: int = 3, initial_t
                 print(f"成功解析頻道 '{handle}' 為 ID: {channel_id}")
                 return channel_id
             else:
-                error_msg = f"yt-dlp 執行成功但無法解析出有效的頻道 ID (UC開頭且長度24): '{channel_id}' for handle: {handle}"
-                if attempt < max_retries - 1:
-                    print(f"警告: {error_msg}，將在 {attempt + 1} 秒後重試...")
-                    time.sleep(attempt + 1)
+                # If channel_id is not valid/empty, try fallback to uploader_id
+                print(f"警告: yt-dlp --print channel_id 執行成功但返回無效 ID: '{channel_id}' for handle: {handle}. 嘗試 uploader_id 作為備援...")
+                
+                # --- Attempt 2: Fallback to uploader_id ---
+                cmd_uploader_id = ["yt-dlp", "--print", "uploader_id", input_identifier, "--no-warnings"]
+                result_uploader = subprocess.run(cmd_uploader_id, capture_output=True, text=True, check=True, timeout=current_timeout)
+                uploader_id = result_uploader.stdout.strip()
+
+                if uploader_id and uploader_id.startswith("UC") and len(uploader_id) == 24:
+                    cache[handle] = uploader_id
+                    save_json(CACHE_FILE, cache)
+                    print(f"成功解析頻道 '{handle}' 為 ID (透過 uploader_id 備援): {uploader_id}")
+                    return uploader_id
                 else:
-                    raise ValueError(error_msg)
+                    # Both channel_id and uploader_id failed or returned invalid IDs
+                    error_msg = f"yt-dlp 無法解析出有效的頻道 ID (UC開頭且長度24) (channel_id: '{channel_id}', uploader_id: '{uploader_id}') for handle: {handle}"
+                    if attempt < max_retries - 1:
+                        print(f"警告: {error_msg}，將在 {attempt + 1} 秒後重試...")
+                        time.sleep(attempt + 1)
+                        continue # Continue to next retry attempt for the outer loop
+                    else:
+                        raise ValueError(error_msg)
+
         except subprocess.CalledProcessError as e:
             error_msg = f"yt-dlp 執行失敗，無法解析頻道 Handle ID '{handle}': {e.stderr.strip()}"
             if "HTTP Error 404" in e.stderr:
@@ -176,7 +207,7 @@ def search_topic_videos(query: str, filters: dict) -> list[dict]:
     """引擎 B：使用 yt-dlp 搜尋全網最新主題影片"""
     cmd = [
         "yt-dlp",
-        f"ytsearchdate8:{query}",
+        f"ytsearchdate8:{query}", # Searches for videos uploaded in the last 8 days
         "--dump-json",
         "--flat-playlist",
         "--no-warnings"
@@ -196,18 +227,29 @@ def search_topic_videos(query: str, filters: dict) -> list[dict]:
                 try:
                     item = json.loads(line)
                     title = item.get("title", "")
-                    duration = item.get("duration") or 0
+                    duration = item.get("duration")
+                    
+                    # yt-dlp --flat-playlist and ytsearchdate sometimes returns non-video entries (e.g. channel links, shorts).
+                    # Filter out non-video entries and ensure required fields are present.
+                    # Also, ensure duration is an actual number for comparison.
+                    if item.get("extractor_key") != "Youtube" or item.get("id") is None:
+                        continue
+                    
+                    if duration is None or not isinstance(duration, (int, float)):
+                        duration = 0 # Default to 0 for invalid/missing duration
+
                     if duration < filters["min_duration_sec"] or duration > filters["max_duration_sec"]:
                         continue
                     if any(bad in title for bad in filters["blacklist_keywords"]):
                         continue
+
                     videos.append({
                         "video_id": item["id"],
                         "title": title,
                         "link": f"https://www.youtube.com/watch?v={item['id']}",
                         "author": item.get("uploader", "未知頻道"),
                         "description": item.get("description", ""),
-                        "published": item.get("upload_date", "最新")
+                        "published": item.get("upload_date", "最新") # Format is YYYYMMDD
                     })
                 except json.JSONDecodeError as e:
                     print(f"警告: 解析 yt-dlp 輸出時發生 JSON 錯誤，跳過該行: {line}. 錯誤: {e}")
@@ -260,17 +302,30 @@ def main():
             continue
 
         feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={ch_id}")
-        for entry in feed.entries[:2]:
+        
+        # Process videos published within the last 7 days from the RSS feed
+        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+
+        for entry in feed.entries:
+            # Check published date. feedparser stores it in entry.published_parsed (datetime object in UTC)
+            if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                published_dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                if published_dt < seven_days_ago:
+                    continue # Skip videos older than 7 days
+            else:
+                print(f"警告: 影片 '{entry.title}' ({entry.yt_videoid}) 無法解析發布時間，預設為近期影片。")
+
             vid = entry.yt_videoid
             if vid in new_seen:
                 continue
+            
             video = {
                 "video_id": vid,
                 "title": entry.title,
                 "link": entry.link,
                 "author": ch["name"],
                 "description": entry.get("summary", ""),
-                "published": entry.get("published", "")[:10]
+                "published": entry.get("published", "")[:10] # Keep original published string for discord embed
             }
             try:
                 transcript = fetch_transcript(vid)
