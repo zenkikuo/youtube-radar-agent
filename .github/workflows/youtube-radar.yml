@@ -2,7 +2,7 @@ name: YouTube Radar Main Agent
 
 on:
   schedule:
-    - cron: '0 */3 * * *'
+    - cron: '0 4,12 * * *'  # 每天台灣時間 12:00（午休配飯）與 20:00（晚間放鬆）各執行一次
   workflow_dispatch:
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
 
       - name: Execute YouTube Radar
         id: radar_step
-        timeout-minutes: 5
+        timeout-minutes: 8
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DISCORD_WEBHOOK_LIFE: ${{ secrets.DISCORD_WEBHOOK_LIFE }}
