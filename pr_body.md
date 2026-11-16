@@ -1,5 +1,5 @@
 ### 🔍 AI 根因診斷 (Root Cause)
-1. 主要根因：Gemini API 免費額度超限。腳本設計上允許對多達 38 部影片進行 AI 審閱，遠超過 Gemini API 免費層每日 20 次的呼叫限制，導致頻繁出現 `429 RESOURCE_EXHAUSTED` 錯誤。具體發生在 `main.py` 中 `main()` 函數內，對 `analyze_video` 的呼叫，分別位於「引擎 A：固定頻道 RSS」區塊（約 300 行）和「引擎 B：主題雷達」區塊（約 330 行）。2. 次要根因（效能與時間限制）：最近一次修改將 `time.sleep` 從 1 秒增加到 4 秒，這會顯著延長腳本執行時間，若無 API 額度限制，將可能超出 3 分鐘的總執行時間限制。具體發生在 `main.py` 的 305 行和 336 行。3. 配置錯誤：`config.yaml` 中「e家愛吃愛旅遊」頻道的 `handle` 欄位為空字串，導致頻道 ID 解析失敗。具體發生在 `config.yaml` 中 `channels` 列表下的「e家愛吃愛旅遊」條目。
+精準根因分析：`main.py` 檔案中 `fetch_transcript` 函數的 `except` 區塊存在 `SyntaxError`。具體來說，約第 100 行的 `return """` 是一個未終止的三引號字串，導致 Python 直譯器在解析腳本時失敗，無法啟動程式。儘管錯誤日誌指向 `line 1`，這通常是解析器在遇到無法恢復的語法錯誤時的通用行為，實際問題點在於 `fetch_transcript` 函數的錯誤處理邏輯。
 
 ### 🛠️ 修復策略
-1. **解決 Gemini API 額度超限問題**：引入 `MAX_GEMINI_API_CALLS` 常數（設定為 15 次，以確保在免費額度內安全運行），並在每次呼叫 `analyze_video` 前檢查已使用的 API 次數。若達到上限，則跳過後續影片的 AI 審閱，並記錄為因額度限制而過濾的影片，但仍將其標記為已處理，避免下次重複嘗試。同時，將固定頻道和主題雷達的影片處理數量分別從 `[:2]` 和 `[:3]` 減少到 `[:1]`，進一步降低潛在的 API 呼叫次數和整體運行時間。2. **優化腳本執行時間**：將 `main.py` 中所有 `time.sleep(4)` 恢復為 `time.sleep(1)`，以符合 3 分鐘內完成腳本執行的要求。3. **修正配置錯誤**：更新 `config.yaml` 中「e家愛吃愛旅遊」頻道的 `handle` 欄位為正確的 `@e_family_travel`，確保頻道 ID 能被正確解析。
+修復策略：將 `main.py` 中 `fetch_transcript` 函數 `except` 區塊的 `return """` 修改為 `return ""`。這將確保在字幕抓取失敗時，函數能正確返回一個空字串，避免語法錯誤，並允許程式繼續執行。其他在 PR body 中提到的 Gemini API 額度限制、`time.sleep` 時間以及 `config.yaml` 中的 `handle` 問題，經檢查已在目前的 `main.py` 和 `config.yaml` 中得到修復，無需再次改動。
