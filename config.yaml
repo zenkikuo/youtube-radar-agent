@@ -32,7 +32,7 @@ channels:
     category: "travel_outdoor"
     webhook: "travel_local"
   - name: "e家愛吃愛旅遊"
-    handle: "@efamily168"
+    handle: ""
     category: "travel_outdoor"
     webhook: "travel_local"
   - name: "山步五時"
@@ -47,7 +47,7 @@ channels:
 
   # --- 生活娛樂 (lifestyle) ---
   - name: "壹加壹"
-    channel_id: "UCmArFxfDybtCbo0Fa0Z25lQ"
+    channel_id: "UCmArFxfDybtCbo0Fa0Z2xxA"
     handle: "@illyandlean"
     category: "lifestyle"
     webhook: "cooking_life"
@@ -82,12 +82,12 @@ channels:
 
 topic_radars:
   - tag: "花東雷達-花蓮"
-    query: "花蓮 美食 景點"
+    query: "花蓮 美食 景點 2026"
     category: "travel_outdoor"
     webhook: "travel_local"
     min_score: 4
   - tag: "花東雷達-宜蘭"
-    query: "宜蘭 露營 親子"
+    query: "宜蘭 露營 親子 2026"
     category: "travel_outdoor"
     webhook: "travel_local"
     min_score: 4
