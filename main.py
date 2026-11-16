@@ -142,7 +142,10 @@ def fetch_transcript(video_id: str) -> str:
     except Exception:
         return ""
 
-def send_discord_channel_card(webhook_url: str, video: dict, preview: SingleChannelPreview):
+def send_discord_channel_card(webhook_env_key: str, video: dict, preview: SingleChannelPreview):
+    if not webhook_env_key:
+        return
+    webhook_url = os.environ.get(webhook_env_key, "")
     if not webhook_url:
         return
     bullets = "\n".join([f"• {b}" for b in preview.bullets])
@@ -164,7 +167,10 @@ def send_discord_channel_card(webhook_url: str, video: dict, preview: SingleChan
     requests.post(webhook_url, json=payload, timeout=10).raise_for_status()
     log(f"📨 [訂閱推播] {video['author']} - {video['title']}")
 
-def send_discord_radar_card(webhook_url: str, tag: str, video: dict, review: RadarReview):
+def send_discord_radar_card(webhook_env_key: str, tag: str, video: dict, review: RadarReview):
+    if not webhook_env_key:
+        return
+    webhook_url = os.environ.get(webhook_env_key, "")
     if not webhook_url:
         return
     stars = "⭐" * review.score + "☆" * (5 - review.score)
@@ -335,8 +341,8 @@ def main():
                     v = channel_new_videos.get(item.video_id)
                     if not v:
                         continue
-                    webhook_url = os.environ.get(config.get("webhooks", {}).get(v["webhook"], ""))
-                    send_discord_channel_card(webhook_url, v, item)
+                    webhook_key = config.get("webhooks", {}).get(v["webhook"], "")
+                    send_discord_channel_card(webhook_key, v, item)
                     report["channel_pushed"].append({"author": v["author"], "title": v["title"], "note": item.quick_note})
                     new_seen.append(item.video_id)
                     time.sleep(1)
@@ -353,8 +359,8 @@ def main():
                 review: RadarReview = call_gemini_smart(client, prompt, RadarReview)
                 if review:
                     if review.score >= radar["min_score"]:
-                        webhook_url = os.environ.get(config.get("webhooks", {}).get(radar["webhook"], ""))
-                        send_discord_radar_card(webhook_url, radar["tag"], video, review)
+                        webhook_key = config.get("webhooks", {}).get(radar["webhook"], "")
+                        send_discord_radar_card(webhook_key, radar["tag"], video, review)
                         report["radar_pushed"].append({"tag": radar["tag"], "title": video["title"], "score": review.score})
                     else:
                         log(f"🗑️ [雷達過濾 {review.score}分] {video['title']}")
