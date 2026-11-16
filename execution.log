@@ -1,3 +1,4 @@
-[07:41:25] 🚀 啟動雙軌 YouTube 內容助理（省額度批次＋雙模型備援版）...
-[07:41:26] ❌ 讀取或解析 config.yaml 失敗: mapping values are not allowed here
-  in "config.yaml", line 1, column 24
+  File "/home/runner/work/youtube-radar-agent/youtube-radar-agent/main.py", line 311
+    }
+    ^
+SyntaxError: closing parenthesis '}' does not match opening parenthesis '[' on line 310
