@@ -1,5 +1,5 @@
-### 🔍 AI 根因診斷 (Root Cause)
-精準根因分析：`main.py` 檔案中 `fetch_transcript` 函數的 `except` 區塊存在 `SyntaxError`。具體來說，約第 100 行的 `return """` 是一個未終止的三引號字串，導致 Python 直譯器在解析腳本時失敗，無法啟動程式。儘管錯誤日誌指向 `line 1`，這通常是解析器在遇到無法恢復的語法錯誤時的通用行為，實際問題點在於 `fetch_transcript` 函數的錯誤處理邏輯。
+### 🔍 AI 根因診斷
+根因有兩點：1. 主要根因是 `config.yaml` 設定檔的語法錯誤。錯誤訊息 `mapping values are not allowed here in "config.yaml", line 1, column 24` 精準指出在 `config.yaml` 的第一行第24個字元處，YAML 解析器遇到了一個不允許出現的鍵值對（mapping value）。這通常發生在將多個鍵值對放在同一行，而沒有正確的 YAML 結構（例如，缺少換行或縮排）。最常見的錯誤模式是將列表項目的屬性寫在同一行，例如 `channels: - name: "Channel A" category: "travel_outdoor"`。2. 次要根因是 `main.py` 的錯誤處理機制不夠完善。`config.yaml` 的載入操作 (`yaml.safe_load(f)`) 被放置在主 `try...except` 區塊之外。這導致當 `config.yaml` 載入失敗時（例如因語法錯誤或檔案不存在），程式會直接拋出未處理的異常並終止，而無法被應用程式的通用錯誤處理邏輯捕獲並記錄，進而導致 GitHub Actions 執行失敗。
 
 ### 🛠️ 修復策略
-修復策略：將 `main.py` 中 `fetch_transcript` 函數 `except` 區塊的 `return """` 修改為 `return ""`。這將確保在字幕抓取失敗時，函數能正確返回一個空字串，避免語法錯誤，並允許程式繼續執行。其他在 PR body 中提到的 Gemini API 額度限制、`time.sleep` 時間以及 `config.yaml` 中的 `handle` 問題，經檢查已在目前的 `main.py` 和 `config.yaml` 中得到修復，無需再次改動。
+修復策略分為兩部分：1. **修正 `config.yaml` 語法**：檢查 `config.yaml` 檔案的第一行，確保所有鍵值對都遵循正確的 YAML 語法。特別是對於列表中的字典項目，每個屬性都應該在獨立的行上，並有正確的縮排。例如，將 `channels: - name: "Channel A" category: "travel_outdoor"` 修改為：`channels: - name: "Channel A" category: "travel_outdoor"`。2. **強化 `main.py` 錯誤處理**：將 `config.yaml` 的載入邏輯移入主 `try...except` 區塊內。同時，將 `seen_videos`、`new_seen` 和 `id_cache` 等關鍵變數的初始化也移到 `try` 區塊之前，確保即使配置載入失敗，這些變數也能被正確初始化，從而避免在 `except` 區塊或程式結束時因變數未定義而引發新的錯誤，保證程式能更優雅地處理異常並存檔報告。
