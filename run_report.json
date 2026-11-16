@@ -1,15 +1,90 @@
 {
-  "run_at": "2026-11-16T07:59:30.185562+00:00",
+  "run_at": "2026-11-16T08:13:56.492133+00:00",
   "skipped_channels": [
     "詹姆士姆士流官方專屬頻道",
     "營火部落達哥",
     "旅遊真台灣",
-    "旅行優先",
-    "安啾咪",
-    "GM的NBA垃圾話"
+    "安啾咪"
   ],
-  "channel_pushed": [],
-  "radar_pushed": [],
-  "radar_filtered_out": 4,
+  "channel_pushed": [
+    {
+      "author": "阿慶師",
+      "title": "油炸是廚房的噩夢，不用油鍋、氣炸鍋！照樣能做出酥香椒鹽魚！餐廳口味的哦~｜阿慶師",
+      "note": "輕鬆學會餐廳級家常菜。"
+    },
+    {
+      "author": "阿慶師",
+      "title": "【甘丹慶菜喇】這葉子很好吃【花枝蝦餅】！#花枝蝦漿 #白蝦 #芝麻葉 #阿慶師 #台語",
+      "note": "快速上手的創意海鮮料理。"
+    },
+    {
+      "author": "料理123",
+      "title": "2027 型男大主廚羊羊得意年菜套組｜早鳥優惠開跑！ 【料理123】",
+      "note": "懶人必備的年節圍爐方案。"
+    },
+    {
+      "author": "料理123",
+      "title": "型男主廚宜蘭私房在地口袋名單#宜蘭 #美食 #food #料理",
+      "note": "宜蘭美食探店，限量美味不容錯過。"
+    },
+    {
+      "author": "壹加壹",
+      "title": "把 iPhone Duo 當主力機兩週，後悔了嗎？｜壹加壹",
+      "note": "深入了解 iPhone Duo 的真實使用體驗。"
+    },
+    {
+      "author": "融融歷險記Ben's Adventure",
+      "title": "【馬來西亞】世界十大潛水勝地！傳說中的傑克魚風暴有多震撼？！馬來西亞西巴丹！ Sipadan Diving Vlog Eng Sub  feat. 疾管署",
+      "note": "潛水愛好者必看的海洋奇觀與旅遊健康指南。"
+    },
+    {
+      "author": "小象愛出門",
+      "title": "孕婦最怕的關卡：喝糖水！！",
+      "note": "孕期健康檢查的真實記錄與分享。"
+    },
+    {
+      "author": "小象愛出門",
+      "title": "我老公是百萬 YOUTUBER？月收入竟然這樣？凌晨2點不睡覺去拍片！跟拍美食紀錄片 YT 的血汗一天！",
+      "note": "深入了解美食YouTuber的真實工作面貌。"
+    },
+    {
+      "author": "山步五時",
+      "title": "#雙11優惠 #週年慶 SANBOO超划算折扣來了！",
+      "note": "戶外旅行裝備的限時優惠資訊。"
+    },
+    {
+      "author": "山步五時",
+      "title": "🇯🇵#旅行日記 東京車站美食推薦‼️",
+      "note": "東京車站的獨特美食發現。"
+    },
+    {
+      "author": "愛爾達體育家族 ELTA Sports",
+      "title": "【全場精華】11/16 韓職聯隊 vs. 日本社會人 ｜ 2026 亞洲冬季棒球聯盟 例行賽",
+      "note": "亞洲冬季棒球聯盟的重點賽事。"
+    },
+    {
+      "author": "愛爾達體育家族 ELTA Sports",
+      "title": "暴風雨過後必迎來彩虹 美國名將Jason Brown長曲感動人心 | 2026-27 ISU花式滑冰大獎賽",
+      "note": "花滑名將Jason Brown的勵志回歸。"
+    },
+    {
+      "author": "NBA",
+      "title": "NBA's Nightly Recap | November 15, 2026",
+      "note": "一次掌握NBA當日所有精彩戰況。"
+    },
+    {
+      "author": "NBA",
+      "title": "NBA's Top 10 Plays of the Night | November 15, 2026",
+      "note": "籃球迷必看的每日精華剪輯。"
+    }
+  ],
+  "radar_pushed": [
+    {
+      "tag": "宜蘭情報",
+      "title": "2026宜蘭行小旅行",
+      "score": 4
+    }
+  ],
+  "radar_filtered_out": 3,
   "error_count": 0
 }
