@@ -1,0 +1,7 @@
+feedparser
+youtube-transcript-api
+yt-dlp
+google-genai
+pydantic
+requests
+pyyaml
