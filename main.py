@@ -18,7 +18,7 @@ CACHE_FILE = "channel_id_cache.json"
 REPORT_FILE = "run_report.json"
 
 # 免費額度分流模型池（按模型獨立計算每日 RPD 配額，2.5-flash 冷卻時自動改用 2.5-flash-lite）
-MODEL_POOL = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+MODEL_POOL = ["gemini-2.5-flash", "gemini-3.5-flash-lite"]
 
 RADAR_AUDIT_PROMPT = """
 你是一位精打細算的台灣自由行與露營規劃師。請嚴格審閱這部陌生頻道的旅遊/露營影片：
