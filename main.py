@@ -335,9 +335,11 @@ def main():
             【新片清單】：
             {json.dumps(batch_input, ensure_ascii=False)}
             """
-            batch_res: BatchChannelPreviews = call_gemini_smart(client, batch_prompt, BatchChannelPreviews)
-            if batch_res and batch_res.items:
+            batch_res = call_gemini_smart(client, batch_prompt, BatchChannelPreviews)
+            if batch_res and getattr(batch_res, "items", None):
                 for item in batch_res.items:
+                    if not item or not getattr(item, "video_id", None):
+                        continue
                     v = channel_new_videos.get(item.video_id)
                     if not v:
                         continue
@@ -356,7 +358,7 @@ def main():
                 transcript = fetch_transcript(vid)
                 content = transcript[:10000] if transcript else f"（無字幕，僅提供簡介）：{video['description'][:1200]}"
                 prompt = f"【嚴格審閱準則】：{RADAR_AUDIT_PROMPT}\n【標題】：{video['title']}\n【內容】：{content}"
-                review: RadarReview = call_gemini_smart(client, prompt, RadarReview)
+                review = call_gemini_smart(client, prompt, RadarReview)
                 if review:
                     if review.score >= radar["min_score"]:
                         webhook_key = config.get("webhooks", {}).get(radar["webhook"], "")

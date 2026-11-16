@@ -1,5 +1,5 @@
 ### 🔍 AI 根因診斷
-在調用 call_gemini_smart 函數時，如果所有的備援模型皆回傳無效或失敗，該函數會主動拋出 QuotaExhaustedError 例外。然而，在主程序中的 except Exception as e 區塊中，會將此例外捕獲並印出，導致 report['error_count'] += 1，最後進入 if report['error_count'] > 0: sys.exit(1)，使任務被當作嚴重錯誤終止。此外，程式碼中未對 webhook 的環境變數鍵值進行安全取值，可能導致 NoneType 物件無法進行字串操作或其他未預期的 NoneType 存取錯誤。
+在處理批次頻道摘要（BatchChannelPreviews）的回傳結果時，程式碼直接使用迴圈 `for item in batch_res.items:`。當 `batch_res` 因某種原因（例如 Pydantic 解析異常或模型回傳結構不完全符合）回傳 `None` 時，存取 `.items` 屬性會引發 'NoneType' object has not attribute 'items'，或者在後續從 `batch_res.items` 取回的 `item` 為空時導致 `item.video_id` 引發 'NoneType' object is not subscriptable / not accessible。此外，`call_gemini_smart` 回傳時若未正確驗證，也可能導致呼叫端接收到 None 物件。
 
 ### 🛠️ 修復策略
-將 QuotaExhaustedError 獨立在 except 區塊中捕捉並進行優雅降級（Graceful degradation），不增加 error_count，避免直接觸發 sys.exit(1)；同時在取得 webhook URL 時加入防呆判斷，確保傳入 requests 的 URL 不會是 None 或空值造成崩潰。
+在 main.py 的批次處理與雷達審閱迴圈中，加入對 `batch_res` 與 `review` 的型態檢查與防禦性編碼（確認 `batch_res` 不為 None 且具備 `items` 屬性才進行走訪；確保每次取得的 `item` 或 `review` 不為 None），避免因為 None 物件呼叫屬性而導致主流程崩潰。
