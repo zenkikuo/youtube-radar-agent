@@ -82,12 +82,12 @@ channels:
 
 topic_radars:
   - tag: "花東雷達-花蓮"
-    query: "花蓮 美食 秘境 親子"
+    query: "花蓮 美食 景點"
     category: "travel_outdoor"
     webhook: "travel_local"
     min_score: 4
   - tag: "花東雷達-宜蘭"
-    query: "宜蘭 露營 美食 景點"
+    query: "宜蘭 露營 親子"
     category: "travel_outdoor"
     webhook: "travel_local"
     min_score: 4
