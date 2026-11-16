@@ -247,6 +247,8 @@ def main():
     client = genai.Client(api_key=api_key, http_options={"api_version": "v1beta"})
 
     try:
+        if not os.path.exists("config.yaml"):
+            raise FileNotFoundError("找不到 config.yaml 檔案，請確認是否正確產生")
         with open("config.yaml", "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
     except Exception as e:
@@ -269,7 +271,7 @@ def main():
 
     try:
         channel_new_videos = {}
-        for ch in config["channels"]:
+        for ch in config.get("channels", []):
             try:
                 ch_id = resolve_channel_id(ch, id_cache)
             except ValueError as e:
@@ -305,7 +307,7 @@ def main():
                     "channel": v["author"],
                     "category": v["category"],
                     "title": v["title"],
-                    "description": v["description"]
+                    "description": v["description"
                 }
                 for v in channel_new_videos.values()
             ]
@@ -325,14 +327,14 @@ def main():
                 v = channel_new_videos.get(item.video_id)
                 if not v:
                     continue
-                webhook_url = os.environ.get(config["webhooks"][v["webhook"]])
+                webhook_url = os.environ.get(config.get("webhooks", {}).get(v["webhook"], ""))
                 send_discord_channel_card(webhook_url, v, item)
                 report["channel_pushed"].append({"author": v["author"], "title": v["title"], "note": item.quick_note})
                 new_seen.append(item.video_id)
                 time.sleep(1)
 
-        for radar in config["topic_radars"]:
-            candidates = search_topic_videos(radar["query"], config["radar_filters"])
+        for radar in config.get("topic_radars", []):
+            candidates = search_topic_videos(radar["query"], config.get("radar_filters", {}))
             for video in candidates[:2]:
                 vid = video["video_id"]
                 if vid in new_seen:
@@ -342,7 +344,7 @@ def main():
                 prompt = f"【嚴格審閱準則】：{RADAR_AUDIT_PROMPT}\n【標題】：{video['title']}\n【內容】：{content}"
                 review: RadarReview = call_gemini_smart(client, prompt, RadarReview)
                 if review.score >= radar["min_score"]:
-                    webhook_url = os.environ.get(config["webhooks"][radar["webhook"]])
+                    webhook_url = os.environ.get(config.get("webhooks", {}).get(radar["webhook"], ""))
                     send_discord_radar_card(webhook_url, radar["tag"], video, review)
                     report["radar_pushed"].append({"tag": radar["tag"], "title": video["title"], "score": review.score})
                 else:
