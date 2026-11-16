@@ -17,30 +17,33 @@ SEEN_FILE = "seen_videos.json"
 CACHE_FILE = "channel_id_cache.json"
 REPORT_FILE = "run_report.json"
 
-# 軌道 A：常看頻道（只做重點整理，不打分數淘汰）
-CHANNEL_SUMMARY_PROMPTS = {
-    "cooking": "請用 3 個簡短重點列出這集教了什麼菜名、核心食材與烹調關鍵（每點不超過 35 字）。若本集剛好是出遊/露營紀錄，則改列景點與特色。",
-    "travel_outdoor": "請用 3 個簡短重點列出這集去了哪個營區或景點、交通/環境特色與最大看點（每點不超過 35 字）。",
-    "lifestyle": "請用 3 個簡短重點提煉這集的企劃主題、有趣看點，並註明是否有特定產品業配（每點不超過 35 字）。",
-    "sports": "【絕對防劇透原則：嚴禁寫出最終比數與誰贏誰輸！】請用 3 個簡短重點列出對戰組合、球星亮點或球評的核心論點（每點不超過 35 字）。"
-}
+# 免費額度分流模型池（按模型獨立計算每日 RPD 配額）
+MODEL_POOL = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
 
-# 軌道 B：陌生主題雷達（嚴格評分排雷）
 RADAR_AUDIT_PROMPT = """
 你是一位精打細算的台灣自由行與露營規劃師。請嚴格審閱這部陌生頻道的旅遊/露營影片：
 1. 強制提取具體資訊：營區或店家名稱、所在鄉鎮、交通/停車提示、真實優缺點或避坑提醒。
 2. 評分標準：必須包含具體新開幕店家、秘境或親子實用資訊才給 4~5 分；若是純風景配樂、標題黨、業配文或無具體地點資訊的流水帳，直接給 1~2 分。
 """
 
-class ChannelPreview(BaseModel):
+# 批次摘要結構：1 次 API 請求處理所有常看頻道新片
+class SingleChannelPreview(BaseModel):
+    video_id: str = Field(description="對應輸入的 video_id")
     bullets: list[str] = Field(description="3 個簡短重點預覽，每點不超過 35 字")
-    quick_note: str = Field(description="一句話看點提示（例如：適合配飯、週末備料參考、純戰術分析）")
+    quick_note: str = Field(description="一句話看點提示（例如：適合配飯、週末備料參考、戰術分析）")
+
+class BatchChannelPreviews(BaseModel):
+    items: list[SingleChannelPreview] = Field(description="所有輸入影片的摘要列表")
 
 class RadarReview(BaseModel):
     score: int = Field(description="實用情報推薦評分 1 到 5 分")
     verdict: str = Field(description="例如：🟢 必看情報、🟡 普通參考、🔴 建議略過")
     summary_bullets: list[str] = Field(description="3 個核心情報重點（含具體店名/地點），每點不超過 40 字")
     reason: str = Field(description="一句話說明值得看或避雷的原因")
+
+class QuotaExhaustedError(Exception):
+    """自訂異常：當所有免費模型今日額度皆用盡時拋出，供主程式優雅存檔退出"""
+    pass
 
 def log(msg: str):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
@@ -55,12 +58,12 @@ def save_json(path: str, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def call_gemini_with_backoff(client: genai.Client, prompt: str, schema):
-    """內建指數退避重試，遇 429 自動等待，徹底避免限流報錯"""
-    for attempt in range(3):
+def call_gemini_smart(client: genai.Client, prompt: str, schema):
+    """自動在多個免費模型間切換，遇到單日配額耗盡時平滑降級"""
+    for model_name in MODEL_POOL:
         try:
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model=model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
@@ -70,12 +73,13 @@ def call_gemini_with_backoff(client: genai.Client, prompt: str, schema):
             )
             return response.parsed
         except Exception as e:
-            if ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)) and attempt < 2:
-                wait_sec = 25 * (attempt + 1)
-                log(f"⏳ 觸及免費 API 速率限制，自動退避等待 {wait_sec} 秒後重試...")
-                time.sleep(wait_sec)
-            else:
-                raise
+            err_str = str(e)
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                log(f"⚠️ 模型 {model_name} 觸及配額上限，嘗試切換下一個備援模型...")
+                time.sleep(3)
+                continue
+            raise
+    raise QuotaExhaustedError("所有免費模型今日配額皆已用盡")
 
 def resolve_channel_id(ch: dict, cache: dict) -> str:
     name = ch["name"]
@@ -107,7 +111,6 @@ def resolve_channel_id(ch: dict, cache: dict) -> str:
                 ch_id = match.group(1)
                 cache[cache_key] = ch_id
                 save_json(CACHE_FILE, cache)
-                log(f"✅ 網頁解析成功：{name} -> {ch_id}")
                 return ch_id
         except Exception:
             pass
@@ -126,7 +129,6 @@ def resolve_channel_id(ch: dict, cache: dict) -> str:
             ch_id = lines[0]
             cache[cache_key] = ch_id
             save_json(CACHE_FILE, cache)
-            log(f"✅ 搜尋備援解析成功：{name} -> {ch_id}")
             return ch_id
     except Exception:
         pass
@@ -141,8 +143,7 @@ def fetch_transcript(video_id: str) -> str:
     except Exception:
         return ""
 
-def send_discord_channel_card(webhook_url: str, video: dict, preview: ChannelPreview):
-    """軌道 A 卡片：乾淨呈現常看頻道新片預覽，不打分數"""
+def send_discord_channel_card(webhook_url: str, video: dict, preview: SingleChannelPreview):
     if not webhook_url:
         return
     bullets = "\n".join([f"• {b}" for b in preview.bullets])
@@ -151,7 +152,7 @@ def send_discord_channel_card(webhook_url: str, video: dict, preview: ChannelPre
         "embeds": [{
             "title": f"🆕 {video['title']}",
             "url": video["link"],
-            "color": 3447003,  # 沉穩藍色邊條，代表訂閱頻道更新
+            "color": 3447003,
             "author": {"name": f"📺 {video['author']}"},
             "thumbnail": {"url": f"https://i.ytimg.com/vi/{video['video_id']}/hqdefault.jpg"},
             "fields": [
@@ -165,7 +166,6 @@ def send_discord_channel_card(webhook_url: str, video: dict, preview: ChannelPre
     log(f"📨 [訂閱推播] {video['author']} - {video['title']}")
 
 def send_discord_radar_card(webhook_url: str, tag: str, video: dict, review: RadarReview):
-    """軌道 B 卡片：陌生主題雷達精選（僅 4 分以上推播）"""
     if not webhook_url:
         return
     stars = "⭐" * review.score + "☆" * (5 - review.score)
@@ -175,7 +175,7 @@ def send_discord_radar_card(webhook_url: str, tag: str, video: dict, review: Rad
         "embeds": [{
             "title": f"[{tag}] {video['title']}",
             "url": video["link"],
-            "color": 3066993,  # 綠色邊條，代表通過嚴格篩選
+            "color": 3066993,
             "author": {"name": f"發現頻道：{video['author']}"},
             "thumbnail": {"url": f"https://i.ytimg.com/vi/{video['video_id']}/hqdefault.jpg"},
             "fields": [
@@ -243,7 +243,7 @@ def search_topic_videos(query: str, filters: dict) -> list[dict]:
     return videos
 
 def main():
-    log("🚀 啟動雙軌 YouTube 內容助理...")
+    log("🚀 啟動雙軌 YouTube 內容助理（省額度批次版）...")
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
@@ -266,64 +266,86 @@ def main():
         "error_count": 0
     }
 
-    # ==========================================
-    # 軌道 A：常看頻道（全部保留，僅做快速重點摘要）
-    # ==========================================
-    for ch in config["channels"]:
-        try:
-            ch_id = resolve_channel_id(ch, id_cache)
-        except ValueError as e:
-            log(f"⏭️ 跳過頻道 {ch['name']}：{e}")
-            report["skipped_channels"].append(ch["name"])
-            continue
+    try:
+        # ==========================================
+        # 軌道 A：先蒐集所有常看頻道新片，再「打包成 1 次 API 請求」
+        # ==========================================
+        channel_new_videos = {}
+        for ch in config["channels"]:
+            try:
+                ch_id = resolve_channel_id(ch, id_cache)
+            except ValueError as e:
+                log(f"⏭️ 跳過頻道 {ch['name']}：{e}")
+                report["skipped_channels"].append(ch["name"])
+                continue
 
-        feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={ch_id}")
-        for entry in feed.entries[:2]:
-            if hasattr(entry, 'published_parsed') and entry.published_parsed:
-                published_dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-                if published_dt < seven_days_ago:
+            feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={ch_id}")
+            for entry in feed.entries[:2]:
+                if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                    published_dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                    if published_dt < seven_days_ago:
+                        continue
+                vid = entry.yt_videoid
+                if vid in new_seen:
                     continue
+                channel_new_videos[vid] = {
+                    "video_id": vid,
+                    "title": entry.title,
+                    "link": entry.link,
+                    "author": ch["name"],
+                    "category": ch["category"],
+                    "webhook": ch["webhook"],
+                    "description": entry.get("summary", "")[:600],
+                    "published": entry.get("published", "")[:10]
+                }
 
-            vid = entry.yt_videoid
-            if vid in new_seen:
-                continue
+        if channel_new_videos:
+            log(f"📦 共蒐集到 {len(channel_new_videos)} 部訂閱頻道新片，打包發送 1 次批次摘要請求...")
+            batch_input = [
+                {
+                    "video_id": v["video_id"],
+                    "channel": v["author"],
+                    "category": v["category"],
+                    "title": v["title"],
+                    "description": v["description"]
+                }
+                for v in channel_new_videos.values()
+            ]
+            batch_prompt = f"""
+            你是一位貼心的影音秘書。請針對以下每部訂閱頻道新片，各自產出 3 個簡短重點預覽（每點不超過 35 字）與一句話看點提示。
+            【分類規則】：
+            - cooking：列出菜名、核心食材與烹調技巧；若為出遊則改列景點。
+            - travel_outdoor：列出營區/景點名稱、特色與看點。
+            - lifestyle：提煉企劃亮點，並註明是否有特定業配。
+            - sports：【絕對防劇透！嚴禁寫出最終比數與勝負結果！】僅列對戰組合、球星亮點或球評核心論點。
 
-            video = {
-                "video_id": vid,
-                "title": entry.title,
-                "link": entry.link,
-                "author": ch["name"],
-                "description": entry.get("summary", ""),
-                "published": entry.get("published", "")[:10]
-            }
-            try:
-                rule = CHANNEL_SUMMARY_PROMPTS.get(ch["category"], CHANNEL_SUMMARY_PROMPTS["lifestyle"])
-                # 常看頻道直接用標題與簡介做快速預覽，省下大量字幕 Token
-                prompt = f"【摘要規則】：{rule}\n【頻道】：{ch['name']}\n【標題】：{video['title']}\n【簡介】：{video['description'][:1500]}"
-                preview = call_gemini_with_backoff(client, prompt, ChannelPreview)
-                webhook_url = os.environ.get(config["webhooks"][ch["webhook"]])
-                send_discord_channel_card(webhook_url, video, preview)
-                report["channel_pushed"].append({"author": ch["name"], "title": video["title"], "note": preview.quick_note})
-                new_seen.append(vid)
-                time.sleep(4)
-            except Exception as e:
-                log(f"❌ 訂閱頻道摘要失敗 ({vid}): {e}")
-                report["error_count"] += 1
+            【新片清單】：
+            {json.dumps(batch_input, ensure_ascii=False)}
+            """
+            batch_res: BatchChannelPreviews = call_gemini_smart(client, batch_prompt, BatchChannelPreviews)
+            for item in batch_res.items:
+                v = channel_new_videos.get(item.video_id)
+                if not v:
+                    continue
+                webhook_url = os.environ.get(config["webhooks"][v["webhook"]])
+                send_discord_channel_card(webhook_url, v, item)
+                report["channel_pushed"].append({"author": v["author"], "title": v["title"], "note": item.quick_note})
+                new_seen.append(item.video_id)
+                time.sleep(1)
 
-    # ==========================================
-    # 軌道 B：花蓮 / 宜蘭主題雷達（嚴格抓字幕評分排雷）
-    # ==========================================
-    for radar in config["topic_radars"]:
-        candidates = search_topic_videos(radar["query"], config["radar_filters"])
-        for video in candidates[:3]:
-            vid = video["video_id"]
-            if vid in new_seen:
-                continue
-            try:
+        # ==========================================
+        # 軌道 B：花蓮 / 宜蘭主題雷達（嚴格抓字幕評分排雷，每組最多審 2 部）
+        # ==========================================
+        for radar in config["topic_radars"]:
+            candidates = search_topic_videos(radar["query"], config["radar_filters"])
+            for video in candidates[:2]:
+                vid = video["video_id"]
+                if vid in new_seen:
+                    continue
                 transcript = fetch_transcript(vid)
-                content = transcript[:12000] if transcript else f"（無字幕，僅提供簡介）：{video['description'][:1500]}"
+                content = transcript[:10000] if transcript else f"（無字幕，僅提供簡介）：{video['description'][:1200]}"
                 prompt = f"【嚴格審閱準則】：{RADAR_AUDIT_PROMPT}\n【標題】：{video['title']}\n【內容】：{content}"
-                review = call_gemini_with_backoff(client, prompt, RadarReview)
+                review: RadarReview = call_gemini_smart(client, prompt, RadarReview)
                 if review.score >= radar["min_score"]:
                     webhook_url = os.environ.get(config["webhooks"][radar["webhook"]])
                     send_discord_radar_card(webhook_url, radar["tag"], video, review)
@@ -332,18 +354,20 @@ def main():
                     log(f"🗑️ [雷達過濾 {review.score}分] {video['title']}")
                     report["radar_filtered_out"] += 1
                 new_seen.append(vid)
-                time.sleep(4)
-            except Exception as e:
-                log(f"❌ 主題雷達審閱失敗 ({vid}): {e}")
-                report["error_count"] += 1
+                time.sleep(3)
+
+    except QuotaExhaustedError as e:
+        log(f"⏸️ {e}，已將目前進度安全存檔，待配額重置後自動接力。")
+    except Exception as e:
+        log(f"❌ 執行過程發生未預期錯誤: {e}")
+        report["error_count"] += 1
 
     save_json(SEEN_FILE, new_seen[-500:])
     save_json(REPORT_FILE, report)
 
     if report["error_count"] > 0:
-        log(f"⚠️ 本輪發生 {report['error_count']} 筆異常，觸發 Auto-Fixer...")
         sys.exit(1)
-    log("🏁 雙軌巡邏任務圓滿完成！")
+    log("🏁 雙軌巡邏任務完成！")
 
 if __name__ == "__main__":
     main()
