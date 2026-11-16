@@ -25,13 +25,14 @@ jobs:
 
       - name: Execute YouTube Radar
         id: radar_step
+        timeout-minutes: 5
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DISCORD_WEBHOOK_LIFE: ${{ secrets.DISCORD_WEBHOOK_LIFE }}
           DISCORD_WEBHOOK_TRAVEL: ${{ secrets.DISCORD_WEBHOOK_TRAVEL }}
           DISCORD_WEBHOOK_SPORTS: ${{ secrets.DISCORD_WEBHOOK_SPORTS }}
         run: |
-          python main.py 2>&1 | tee execution.log
+          python -u main.py 2>&1 | tee execution.log
           exit ${PIPESTATUS[0]}
 
       - name: Commit updated seen_videos & cache
