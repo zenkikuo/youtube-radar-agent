@@ -58,17 +58,53 @@ def save_json(path: str, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def resolve_channel_id(handle: str, cache: dict) -> str:
+    """
+    透過 yt-dlp 或直接判斷來解析頻道 Handle 或 URL 為頻道 ID (UC開頭)。
+    這是因為 YouTube 網頁結構變化，原始的 Regex 可能失效。
+    """
     if handle in cache:
         return cache[handle]
-    url = f"https://www.youtube.com/{handle}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    resp = requests.get(url, headers=headers, timeout=15)
-    match = re.search(r'"channelId":"(UC[\w-]+)"', resp.text)
-    if match:
-        cache[handle] = match.group(1)
+
+    # 如果 handle 已經是標準的 YouTube Channel ID (UC開頭，24字元)，則直接返回
+    if handle.startswith("UC") and len(handle) == 24 and re.match(r"UC[\w-]+", handle):
+        cache[handle] = handle
         save_json(CACHE_FILE, cache)
-        return match.group(1)
-    raise ValueError(f"無法解析頻道 Handle ID: {handle}")
+        return handle
+
+    # 構建用於 yt-dlp 的輸入 URL。yt-dlp 可以處理 @handle 或完整的 YouTube URL。
+    if handle.startswith("http://") or handle.startswith("https://"):
+        input_identifier = handle
+    elif handle.startswith("@"): # 假設是 @handle 格式
+        input_identifier = f"https://www.youtube.com/{handle}"
+    else: # 可能是 legacy /user/ 或 /c/ 格式，或者直接是 channel ID 的一部分
+        input_identifier = f"https://www.youtube.com/{handle}"
+
+    cmd = ["yt-dlp", "--print", "channel_id", input_identifier, "--no-warnings"]
+    
+    try:
+        # 使用 check=True 確保非零返回碼會觸發 CalledProcessError
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=15)
+        channel_id = result.stdout.strip()
+        
+        if channel_id and channel_id.startswith("UC") and len(channel_id) == 24:
+            cache[handle] = channel_id
+            save_json(CACHE_FILE, cache)
+            return channel_id
+        else:
+            # yt-dlp 成功執行但返回的不是有效的頻道 ID
+            raise ValueError(f"yt-dlp 執行成功但無法解析出有效的頻道 ID (UC開頭且長度24): '{channel_id}' for handle: {handle}")
+    except subprocess.CalledProcessError as e:
+        # yt-dlp 執行失敗，通常是因為找不到頻道或 URL 無效
+        print(f"yt-dlp 執行失敗，無法解析頻道 Handle ID '{handle}': {e.stderr.strip()}")
+        raise ValueError(f"yt-dlp 無法解析頻道 Handle ID: {handle}") from e
+    except subprocess.TimeoutExpired:
+        # yt-dlp 執行超時
+        print(f"yt-dlp 解析頻道 Handle ID '{handle}' 時超時。")
+        raise ValueError(f"yt-dlp 無法解析頻道 Handle ID (超時): {handle}")
+    except Exception as e:
+        # 捕獲其他未預期的錯誤
+        print(f"解析頻道 Handle ID '{handle}' 時發生未知錯誤: {e}")
+        raise ValueError(f"未知錯誤，無法解析頻道 Handle ID: {handle}") from e
 
 def fetch_transcript(video_id: str) -> str:
     try:
@@ -164,6 +200,7 @@ def main():
 
     # 1. 執行引擎 A：固定頻道 RSS
     for ch in config["channels"]:
+        # resolve_channel_id 函數已更新，能夠更穩定地將 Handle 或 URL 解析為頻道 ID。
         ch_id = resolve_channel_id(ch["handle"], id_cache)
         feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={ch_id}")
         # 每次只檢查最新 2 部，避免初次啟動洗版
