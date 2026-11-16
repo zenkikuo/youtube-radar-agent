@@ -56,8 +56,7 @@ jobs:
               main_code = f.read()
           with open("config.yaml", "r", encoding="utf-8") as f:
               config_code = f.read()
-          
-          # 取得最近一次 commit 變更，避免 AI 重複犯錯
+
           recent_diff = subprocess.getoutput("git diff HEAD~1 HEAD")[-3000:]
 
           client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
@@ -81,7 +80,7 @@ jobs:
           {main_code}
           """
           res = client.models.generate_content(
-              model="gemini-2.5-pro",  # 修復任務改用推理能力更強的 Pro 模型
+              model="gemini-2.5-pro",
               contents=prompt,
               config=types.GenerateContentConfig(
                   response_mime_type="application/json",
