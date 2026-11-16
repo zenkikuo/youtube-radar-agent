@@ -1,0 +1,50 @@
+name: YouTube Radar Main Agent
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'  # 每 3 小時執行一次
+  workflow_dispatch:       # 支援手動一鍵測試
+
+permissions:
+  contents: write
+
+jobs:
+  run-radar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Execute YouTube Radar
+        id: radar_step
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DISCORD_WEBHOOK_LIFE: ${{ secrets.DISCORD_WEBHOOK_LIFE }}
+          DISCORD_WEBHOOK_TRAVEL: ${{ secrets.DISCORD_WEBHOOK_TRAVEL }}
+          DISCORD_WEBHOOK_SPORTS: ${{ secrets.DISCORD_WEBHOOK_SPORTS }}
+        run: |
+          python main.py 2>&1 | tee execution.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Commit updated seen_videos & cache
+        if: success()
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add seen_videos.json channel_id_cache.json || true
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: update seen videos and channel cache" && git push)
+
+      - name: Upload error log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-log
+          path: execution.log
