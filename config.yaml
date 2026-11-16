@@ -18,7 +18,7 @@ channels:
     category: "cooking"
     webhook: "cooking_life"
   - name: "albee三寶媽"
-    handle: "@albee3mama"
+    handle: "@albeelife"
     category: "cooking"
     webhook: "cooking_life"
 
@@ -32,7 +32,7 @@ channels:
     category: "travel_outdoor"
     webhook: "travel_local"
   - name: "e家愛吃愛旅遊"
-    handle: "@efamilytravel"
+    handle: "@efamily168"
     category: "travel_outdoor"
     webhook: "travel_local"
   - name: "山步五時"
@@ -56,7 +56,7 @@ channels:
     category: "lifestyle"
     webhook: "cooking_life"
   - name: "馬鈴薯小姐"
-    handle: "@miss_potato"
+    handle: "@misspotato"
     category: "lifestyle"
     webhook: "cooking_life"
 
