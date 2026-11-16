@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
 
       - name: Download error log artifact
         uses: actions/download-artifact@v4
@@ -29,47 +31,82 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install google-genai requests
+      - run: pip install google-genai pydantic
 
-      - name: AI Diagnose and Generate Fix
+      - name: AI Deep Diagnose & Patch
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python - << 'EOF'
-          import os
+          import os, subprocess
+          from pydantic import BaseModel, Field
           from google import genai
+          from google.genai import types
+
+          class FixPlan(BaseModel):
+              root_cause: str = Field(description="精準根因分析（指出具體檔案、行號與失敗原因）")
+              fix_strategy: str = Field(description="修復策略說明")
+              update_config: bool = Field(description="是否需要修改 config.yaml")
+              fixed_config_yaml: str = Field(description="若 update_config 為 True，輸出完整修復後的 config.yaml，否則留空")
+              fixed_main_py: str = Field(description="完整修復後的 main.py 程式碼（純 Python，無 markdown 標記）")
 
           with open("execution.log", "r", encoding="utf-8") as f:
-              error_log = f.read()[-6000:]
+              error_log = f.read()[-8000:]
           with open("main.py", "r", encoding="utf-8") as f:
-              source_code = f.read()
+              main_code = f.read()
+          with open("config.yaml", "r", encoding="utf-8") as f:
+              config_code = f.read()
+          
+          # 取得最近一次 commit 變更，避免 AI 重複犯錯
+          recent_diff = subprocess.getoutput("git diff HEAD~1 HEAD")[-3000:]
 
           client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
           prompt = f"""
-          你是資深 Python 自動化修復工程師。主線腳本 main.py 在 GitHub Actions 執行失敗。
-          請根據以下 Error Log 找出根因，並直接輸出「完整修復後的 main.py 程式碼」。
-          注意：只輸出純 Python 程式碼，不要包含任何 markdown ```python 標記或解釋文字。
+          你是資深 Python 系統架構師。主線腳本在 GitHub Actions 執行失敗，請進行深度根因分析並修復。
+          【工程鐵律】：
+          1. 單一頻道或單一影片抓取失敗時，必須用 try-except 隔離並印出詳細錯誤，絕不可讓整支程式崩潰。
+          2. 嚴禁使用無上限重試迴圈或過長的 time.sleep，整支腳本執行時間必須控制在 3 分鐘內。
+          3. 若是 config.yaml 中的頻道 @handle 無法解析，請修正該 handle 或在 main.py 增加模糊搜尋頻道 ID 的備援機制。
+
+          【最近一次修改紀錄 (避免重蹈覆轍)】：
+          {recent_diff}
 
           【Error Log】：
           {error_log}
 
-          【原始 main.py】：
-          {source_code}
+          【目前 config.yaml】：
+          {config_code}
+
+          【目前 main.py】：
+          {main_code}
           """
-          res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-          fixed_code = res.text.strip().removeprefix("```python").removesuffix("```").strip()
+          res = client.models.generate_content(
+              model="gemini-2.5-pro",  # 修復任務改用推理能力更強的 Pro 模型
+              contents=prompt,
+              config=types.GenerateContentConfig(
+                  response_mime_type="application/json",
+                  response_schema=FixPlan,
+                  temperature=0.1,
+              ),
+          )
+          plan = res.parsed
+
           with open("main.py", "w", encoding="utf-8") as f:
-              f.write(fixed_code)
+              f.write(plan.fixed_main_py.strip())
+          if plan.update_config and plan.fixed_config_yaml.strip():
+              with open("config.yaml", "w", encoding="utf-8") as f:
+                  f.write(plan.fixed_config_yaml.strip())
+
+          with open("pr_body.md", "w", encoding="utf-8") as f:
+              f.write(f"### 🔍 AI 根因診斷 (Root Cause)\n{plan.root_cause}\n\n### 🛠️ 修復策略\n{plan.fix_strategy}")
           EOF
 
       - name: Create Fix Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "fix(ai-agent): auto-resolve runtime exception in main.py"
-          title: "🤖 [AI Auto-Fix] 自動修復主線執行異常"
-          body: |
-            主線 `YouTube Radar Main Agent` 執行發生異常，AI 修復代理已自動分析錯誤日誌並生成修復補丁。
-            請檢視變更內容後合併（Merge）回主線進行測試。
+          commit-message: "fix(ai-agent): root-cause fix based on execution log"
+          title: "🤖 [AI Auto-Fix] 根因診斷與自動修復補丁"
+          body-path: pr_body.md
           branch: ai-fix/main-patch
           delete-branch: true
