@@ -253,6 +253,9 @@ def main():
             config = yaml.safe_load(f)
         if not isinstance(config, dict):
             raise ValueError("config.yaml 格式錯誤，根節點必須是 dict 映射結構")
+    except yaml.YAMLError as ye:
+        log(f"❌ 讀取或解析 config.yaml 失敗 (YAML 語法錯誤): {ye}")
+        sys.exit(1)
     except Exception as e:
         log(f"❌ 讀取或解析 config.yaml 失敗: {e}")
         sys.exit(1)
