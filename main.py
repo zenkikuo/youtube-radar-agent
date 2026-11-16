@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import json
 import yaml
 import time
@@ -60,7 +61,6 @@ def save_json(path: str, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def resolve_channel_id(ch: dict, cache: dict) -> str:
-    """多重備援解析頻道 UC ID（支援預設 ID 驗證、Consent Cookie 繞過、yt-dlp Android 偽裝搜尋）"""
     name = ch["name"]
     handle = ch.get("handle", "")
     cache_key = handle or name
@@ -68,7 +68,6 @@ def resolve_channel_id(ch: dict, cache: dict) -> str:
     if cache_key in cache:
         return cache[cache_key]
 
-    # 1. 若 config 已提供 channel_id，先驗證該 RSS 是否有效
     preset_id = ch.get("channel_id", "")
     if preset_id.startswith("UC") and len(preset_id) == 24:
         test_feed = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?channel_id={preset_id}")
@@ -78,7 +77,6 @@ def resolve_channel_id(ch: dict, cache: dict) -> str:
             log(f"✅ 驗證預設 ID 成功：{name} -> {preset_id}")
             return preset_id
 
-    # 2. 帶入 CONSENT Cookie 抓取頻道首頁原始碼（繞過雲端 IP 同意閘道）
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
@@ -98,7 +96,6 @@ def resolve_channel_id(ch: dict, cache: dict) -> str:
         except Exception as e:
             log(f"⚠️ 網頁解析 {name} 異常: {e}")
 
-    # 3. 備援：用 yt-dlp Android Client 搜尋頻道名稱第 1 筆影片提取 channel_id
     try:
         cmd = [
             "yt-dlp",
@@ -131,13 +128,12 @@ def fetch_transcript(video_id: str) -> str:
 def analyze_video(client: genai.Client, title: str, description: str, transcript: str, category: str) -> VideoReview:
     system_prompt = CATEGORY_PROMPTS.get(category, CATEGORY_PROMPTS["lifestyle"])
     content_source = transcript[:15000] if transcript else f"（無字幕，僅提供影片簡介）：{description}"
-    prompt = f"影片標題：{title}\n內容資訊：{content_source}"
+    prompt = f"【審閱任務與準則】：\n{system_prompt}\n\n【影片標題】：{title}\n【內容資訊】：{content_source}"
 
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
             response_mime_type="application/json",
             response_schema=VideoReview,
             temperature=0.3,
@@ -172,7 +168,6 @@ def send_discord(webhook_url: str, tag: str, video: dict, review: VideoReview):
     log(f"📨 已推播至 Discord：[{tag}] {video['title']} ({review.score}分)")
 
 def search_topic_videos(query: str, filters: dict) -> list[dict]:
-    """引擎 B：使用 Android Client 偽裝搜尋全網主題影片"""
     log(f"🔍 啟動主題雷達搜尋：{query}")
     cmd = [
         "yt-dlp",
@@ -220,7 +215,7 @@ def main():
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=api_key, http_options={"api_version": "v1beta"})
 
     with open("config.yaml", "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
@@ -228,7 +223,8 @@ def main():
     seen_videos = load_json(SEEN_FILE, [])
     id_cache = load_json(CACHE_FILE, {})
     new_seen = list(seen_videos)
-    three_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    error_count = 0
 
     # 1. 引擎 A：固定頻道 RSS
     for ch in config["channels"]:
@@ -242,7 +238,7 @@ def main():
         for entry in feed.entries[:2]:
             if hasattr(entry, 'published_parsed') and entry.published_parsed:
                 published_dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-                if published_dt < three_days_ago:
+                if published_dt < seven_days_ago:
                     continue
 
             vid = entry.yt_videoid
@@ -266,6 +262,7 @@ def main():
                 new_seen.append(vid)
             except Exception as e:
                 log(f"❌ 審閱或推播失敗 ({vid}): {e}")
+                error_count += 1
             time.sleep(1)
 
     # 2. 引擎 B：花蓮 / 宜蘭主題雷達
@@ -287,9 +284,13 @@ def main():
                 new_seen.append(vid)
             except Exception as e:
                 log(f"❌ 雷達影片審閱失敗 ({vid}): {e}")
+                error_count += 1
             time.sleep(1)
 
     save_json(SEEN_FILE, new_seen[-500:])
+    if error_count > 0:
+        log(f"⚠️ 本輪共發生 {error_count} 筆 API/推播異常，主動觸發 Auto-Fixer 診斷...")
+        sys.exit(1)
     log("🏁 全部巡邏任務完成！")
 
 if __name__ == "__main__":
