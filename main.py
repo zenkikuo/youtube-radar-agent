@@ -307,7 +307,7 @@ def main():
                     "channel": v["author"],
                     "category": v["category"],
                     "title": v["title"],
-                    "description": v["description"
+                    "description": v["description"]
                 }
                 for v in channel_new_videos.values()
             ]
