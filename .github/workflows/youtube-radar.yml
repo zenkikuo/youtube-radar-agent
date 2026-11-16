@@ -39,8 +39,12 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add seen_videos.json channel_id_cache.json || true
-          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: update seen videos and channel cache" && git push)
+          [ -f seen_videos.json ] && git add seen_videos.json
+          [ -f channel_id_cache.json ] && git add channel_id_cache.json
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update seen videos and channel cache"
+            git push
+          fi
 
       - name: Upload error log on failure
         if: failure()
