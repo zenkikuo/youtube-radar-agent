@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "/home/runner/work/youtube-radar-agent/youtube-radar-agent/main.py", line 208, in <module>
+    main()
+  File "/home/runner/work/youtube-radar-agent/youtube-radar-agent/main.py", line 167, in main
+    ch_id = resolve_channel_id(ch["handle"], id_cache)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/youtube-radar-agent/youtube-radar-agent/main.py", line 71, in resolve_channel_id
+    raise ValueError(f"無法解析頻道 Handle ID: {handle}")
+ValueError: 無法解析頻道 Handle ID: @achingchef
