@@ -1,0 +1,75 @@
+name: AI Auto-Fixer Agent
+
+on:
+  workflow_run:
+    workflows: ["YouTube Radar Main Agent"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-fix:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download error log artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: error-log
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Set up Python & GenAI SDK
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install google-genai requests
+
+      - name: AI Diagnose and Generate Fix
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python - << 'EOF'
+          import os
+          from google import genai
+
+          with open("execution.log", "r", encoding="utf-8") as f:
+              error_log = f.read()[-6000:]
+          with open("main.py", "r", encoding="utf-8") as f:
+              source_code = f.read()
+
+          client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+          prompt = f"""
+          你是資深 Python 自動化修復工程師。主線腳本 main.py 在 GitHub Actions 執行失敗。
+          請根據以下 Error Log 找出根因，並直接輸出「完整修復後的 main.py 程式碼」。
+          注意：只輸出純 Python 程式碼，不要包含任何 markdown ```python 標記或解釋文字。
+
+          【Error Log】：
+          {error_log}
+
+          【原始 main.py】：
+          {source_code}
+          """
+          res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+          fixed_code = res.text.strip().removeprefix("```python").removesuffix("```").strip()
+          with open("main.py", "w", encoding="utf-8") as f:
+              f.write(fixed_code)
+          EOF
+
+      - name: Create Fix Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "fix(ai-agent): auto-resolve runtime exception in main.py"
+          title: "🤖 [AI Auto-Fix] 自動修復主線執行異常"
+          body: |
+            主線 `YouTube Radar Main Agent` 執行發生異常，AI 修復代理已自動分析錯誤日誌並生成修復補丁。
+            請檢視變更內容後合併（Merge）回主線進行測試。
+          branch: ai-fix/main-patch
+          delete-branch: true
