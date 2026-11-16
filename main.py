@@ -176,7 +176,7 @@ def search_topic_videos(query: str, filters: dict) -> list[dict]:
     log(f"🔍 啟動主題雷達搜尋：{query}")
     cmd = [
         "yt-dlp",
-        f"ytsearchdate8:{query}",
+        f"ytsearch10:{query}",
         "--dump-json",
         "--flat-playlist",
         "--extractor-args", "youtube:player_client=android,web",
@@ -228,7 +228,7 @@ def main():
     seen_videos = load_json(SEEN_FILE, [])
     id_cache = load_json(CACHE_FILE, {})
     new_seen = list(seen_videos)
-    three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
+    three_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
 
     # 1. 引擎 A：固定頻道 RSS
     for ch in config["channels"]:
