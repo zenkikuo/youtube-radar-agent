@@ -35,15 +35,16 @@ jobs:
           python -u main.py 2>&1 | tee execution.log
           exit ${PIPESTATUS[0]}
 
-      - name: Commit updated seen_videos & cache
+      - name: Commit updated seen_videos, cache & report
         if: success()
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           [ -f seen_videos.json ] && git add seen_videos.json
           [ -f channel_id_cache.json ] && git add channel_id_cache.json
+          [ -f run_report.json ] && git add run_report.json
           if ! git diff --staged --quiet; then
-            git commit -m "chore: update seen videos and channel cache"
+            git commit -m "chore: update seen videos, channel cache and run report"
             git push
           fi
 
