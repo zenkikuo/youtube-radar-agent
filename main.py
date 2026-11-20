@@ -367,6 +367,8 @@ def main():
                     else:
                         log(f"🗑️ [雷達過濾 {review.score}分] {video['title']}")
                         report["radar_filtered_out"] += 1
+                else:
+                    log(f"⚠️ 略過影片（無法取得有效審閱結果）: {video['title']}")
                 new_seen.append(vid)
                 time.sleep(3)
 
