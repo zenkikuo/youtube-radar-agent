@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-11-22T12:25:45.325037+00:00",
+  "run_at": "2026-11-23T14:18:51.417658+00:00",
   "skipped_channels": [
     "詹姆士姆士流官方專屬頻道",
     "營火部落達哥",
@@ -8,32 +8,42 @@
   ],
   "channel_pushed": [
     {
+      "author": "阿慶師",
+      "title": "滷肉飯要好吃，關鍵到底在哪裡？",
+      "note": "滷肉飯愛好者必看，還有活動好康。"
+    },
+    {
       "author": "料理123",
-      "title": "型男主廚宜蘭必吃牛排!?#宜蘭 #美食 #food #料理#牛排",
-      "note": "宜蘭美食探店，越式牛排新選擇。"
+      "title": "芋頭飯 | 這樣煮香到不行！一開鍋就讓人食慾大開【料理123】",
+      "note": "芋頭控必學，簡單煮出香濃芋頭飯。"
+    },
+    {
+      "author": "小象愛出門",
+      "title": "孕婦一個人自駕！愛爾蘭公路之旅！租車踩雷多噴一萬？開箱千年古堡！",
+      "note": "孕婦愛爾蘭自駕攻略，避開租車陷阱。"
     },
     {
       "author": "愛爾達體育家族 ELTA Sports",
-      "title": "11/22 捷克 vs. 台鋼 四局上，無人出局滿壘的局面，Prejda的高飛犧牲打扳平戰局｜ 2026 台捷棒球交流賽",
-      "note": "台捷棒球交流賽，精彩攻防回顧。"
+      "title": "【全場精華】11/23 日職聯隊 vs. 韓職聯隊 ｜ 2026 亞洲冬季棒球聯盟 例行賽",
+      "note": "棒球迷必看，冬季聯盟精彩賽事。"
     },
     {
       "author": "愛爾達體育家族 ELTA Sports",
-      "title": "11/22 捷克 vs. 台鋼 三局上，捷克攻勢串聯，將比分追至1分差｜ 2026 台捷棒球交流賽",
-      "note": "台捷棒球交流賽，戰況膠著片段。"
+      "title": "史上投手最大約！史庫柏4.5億美元轉戰大都會/愛爾達電視20261123",
+      "note": "關注MLB休賽季，投手市場震撼彈。"
     },
     {
       "author": "NBA",
-      "title": "EXTENDED: BUCKS at 76ERS | FULL GAME HIGHLIGHTS | November 21, 2026",
-      "note": "NBA精彩對決，球星數據亮眼。"
+      "title": "NBA's TOP Plays of Week 5 | 2026-27 Season",
+      "note": "NBA球迷必看，本週最佳好球。"
     },
     {
       "author": "NBA",
-      "title": "NBA's Nightly Recap | November 21, 2026",
-      "note": "一次掌握NBA當日所有精彩戰況。"
+      "title": "NBA's Nightly Recap | November 22, 2026",
+      "note": "快速掌握NBA賽況，不錯過精彩瞬間。"
     }
   ],
   "radar_pushed": [],
-  "radar_filtered_out": 1,
+  "radar_filtered_out": 0,
   "error_count": 0
 }
