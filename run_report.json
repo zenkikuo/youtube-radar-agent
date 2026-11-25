@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-11-24T14:43:24.269256+00:00",
+  "run_at": "2026-11-25T14:05:42.410253+00:00",
   "skipped_channels": [
     "詹姆士姆士流官方專屬頻道",
     "營火部落達哥",
@@ -8,42 +8,37 @@
   ],
   "channel_pushed": [
     {
-      "author": "阿慶師",
-      "title": "炒絞肉不出水的訣竅在這集！夾饅頭、配飯、配麵都很對味！｜阿慶師",
-      "note": "適合配飯、夾饅頭的家常料理。"
-    },
-    {
       "author": "料理123",
-      "title": "醬油蔥燒蛋【料理123】",
-      "note": "快速上手的下飯蛋料理。"
+      "title": "麻辣沙茶肉燥起司飯糰 | 肉燥這樣做香氣直接升級！【料理123】",
+      "note": "適合配飯，創意飯糰新吃法。"
     },
     {
       "author": "壹加壹",
-      "title": "試著拍旅遊美食廢片",
-      "note": "輕鬆幽默的旅遊美食紀錄。"
+      "title": "這是我認為2026最值得收藏的『有線耳機』Sony MDR-3R",
+      "note": "3C產品開箱評測，耳機選購參考。"
     },
     {
       "author": "愛爾達體育家族 ELTA Sports",
-      "title": "【全場精華】11/24 台灣海洋 vs. 韓職聯隊 ｜ 2026 亞洲冬季棒球聯盟 例行賽",
-      "note": "亞洲冬季棒球聯盟賽事回顧。"
+      "title": "【全場精華】11/25 台灣山林 vs. 日職聯隊 ｜ 2026 亞洲冬季棒球聯盟 例行賽",
+      "note": "棒球賽事精華，觀看重點攻防。"
     },
     {
       "author": "愛爾達體育家族 ELTA Sports",
-      "title": "台灣山林3：0大學明星 連兩場完封止敗 /愛爾達電視20261124",
-      "note": "亞洲冬季棒球聯盟賽事分析。"
+      "title": "【MLB】平良海馬加盟藍鳥！佐藤輝明野手最大約/愛爾達電視20261125",
+      "note": "MLB球員轉會消息，關注日職球星動向。"
     },
     {
       "author": "NBA",
-      "title": "NBA's Nightly Recap | November 23, 2026",
-      "note": "快速掌握NBA當晚戰況與精華。"
+      "title": "NBA's Top 10 Plays of the Night | November 24, 2026",
+      "note": "NBA每日精華，欣賞頂尖球技。"
     },
     {
       "author": "NBA",
-      "title": "NBA's Top 10 Plays of the Night | November 23, 2026",
-      "note": "欣賞NBA球星的極致美技。"
+      "title": "NBA's Nightly Recap | November 24, 2026",
+      "note": "NBA賽事總覽，快速掌握戰況與亮點。"
     }
   ],
   "radar_pushed": [],
-  "radar_filtered_out": 0,
+  "radar_filtered_out": 1,
   "error_count": 0
 }
