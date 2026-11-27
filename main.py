@@ -324,7 +324,7 @@ def main():
                 }
                 for v in channel_new_videos.values()
             ]
-            batch_prompt = f"""
+            batch_prompt = """
             你是一位貼心的影音秘書。請針對以下每部訂閱頻道新片，各自產出 3 個簡短重點預覽（每點不超過 35 字）與一句話看點提示。
             【分類規則】：
             - cooking：列出菜名、核心食材與烹調技巧；若為出遊則改列景點。
@@ -333,12 +333,11 @@ def main():
             - sports：【絕對防劇透！嚴禁寫出最終比數與勝負結果！】僅列對戰組合、球星亮點或球評核心論點。
 
             【新片清單】：
-            {json.dumps(batch_input, ensure_ascii=False)}
-            """
+            """ + json.dumps(batch_input, ensure_ascii=False)
             batch_res = call_gemini_smart(client, batch_prompt, BatchChannelPreviews)
             if batch_res and getattr(batch_res, "items", None):
                 for item in batch_res.items:
-                    if not item or not getattr(item, "video_id", None):
+                    if item is None or not getattr(item, "video_id", None):
                         continue
                     v = channel_new_videos.get(item.video_id)
                     if not v:
